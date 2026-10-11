@@ -85,8 +85,8 @@
     <string name="settings_title">Settings</string>
     <string name="settings_device">Rangefinder</string>
     <string name="settings_units">Units</string>
-    <string name="units_metric">Metres</string>
-    <string name="units_imperial">Feet</string>
+    <string name="units_metric">Metres (m)</string>
+    <string name="units_imperial">Feet (ft)</string>
     <string name="settings_precision">Decimal places</string>
     <string name="settings_theme">Theme</string>
     <string name="theme_system">System</string>
@@ -113,9 +113,6 @@
     <string name="device_reference">Measure from</string>
     <string name="reference_rear">Back edge</string>
     <string name="reference_front">Front edge</string>
-    <string name="device_unit">Units on the rangefinder</string>
-    <string name="device_unit_m">m</string>
-    <string name="device_unit_ft">ft</string>
-    <string name="device_settings_hint">These change the rangefinder itself. Zamer always receives millimetres.</string>
-    <string name="device_settings_offline">Available while the rangefinder is connected.</string>
+    <string name="device_settings_hint">The reference edge changes on the rangefinder itself. Units change in the app and on the rangefinder.</string>
+    <string name="device_settings_offline">The reference edge can be changed while the rangefinder is connected. Units reach the rangefinder when it connects.</string>
 </resources>

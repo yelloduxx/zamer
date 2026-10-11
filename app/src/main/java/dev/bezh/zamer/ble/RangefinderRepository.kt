@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import dev.bezh.zamer.data.AppStore
 import dev.bezh.zamer.data.PairedDevice
 import dev.bezh.zamer.domain.Reading
+import dev.bezh.zamer.domain.UnitSystem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -166,7 +167,7 @@ class RangefinderRepository(
         }
     }
 
-    private fun onReport(report: DeviceFrame.Report) {
+    private suspend fun onReport(report: DeviceFrame.Report) {
         report.valueOf(DeviceAttr.DISTANCE_TYPE, DeviceAttr.DISTANCE_ID)?.let {
             _readings.tryEmit(Reading(it.toInt(), System.currentTimeMillis()))
         }
@@ -174,7 +175,12 @@ class RangefinderRepository(
             ReferenceEdge.entries.getOrNull(v.toInt())?.let { r -> _device.update { it.copy(reference = r) } }
         }
         report.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.UNIT_ID)?.let { v ->
-            DeviceUnit.entries.getOrNull(v.toInt())?.let { u -> _device.update { it.copy(unit = u) } }
+            DeviceUnit.entries.getOrNull(v.toInt())?.let { u ->
+                _device.update { it.copy(unit = u) }
+                // The rangefinder has no unit button of its own, so the app's setting is the one to keep.
+                val wanted = if (store.settings.first().units == UnitSystem.IMPERIAL) DeviceUnit.FEET else DeviceUnit.METRES
+                if (u != wanted) setDeviceUnit(wanted)
+            }
         }
     }
 

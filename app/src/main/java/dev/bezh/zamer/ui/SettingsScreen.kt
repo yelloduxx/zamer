@@ -95,12 +95,19 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
                 enabled = connected && device.reference != null,
                 onSelect = { e -> scope.launch { container.repository.setReference(e) } },
             )
-            Text(stringResource(R.string.device_unit), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text(stringResource(R.string.settings_units), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            // One choice for both screens: the app switches at once, the rangefinder when connected.
             Segmented(
-                options = listOf(R.string.device_unit_m to DeviceUnit.METRES, R.string.device_unit_ft to DeviceUnit.FEET),
-                selected = device.unit,
-                enabled = connected && device.unit != null,
-                onSelect = { u -> scope.launch { container.repository.setDeviceUnit(u) } },
+                options = listOf(R.string.units_metric to UnitSystem.METRIC, R.string.units_imperial to UnitSystem.IMPERIAL),
+                selected = settings.units,
+                onSelect = { u ->
+                    update { it.copy(units = u) }
+                    if (connected) {
+                        scope.launch {
+                            container.repository.setDeviceUnit(if (u == UnitSystem.IMPERIAL) DeviceUnit.FEET else DeviceUnit.METRES)
+                        }
+                    }
+                },
             )
             Text(
                 stringResource(if (connected) R.string.device_settings_hint else R.string.device_settings_offline),
@@ -110,18 +117,7 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
             )
         }
 
-        SettingsCard(stringResource(R.string.settings_units)) {
-            Segmented(
-                options = listOf(R.string.units_metric to UnitSystem.METRIC, R.string.units_imperial to UnitSystem.IMPERIAL),
-                selected = settings.units,
-                onSelect = { u -> update { it.copy(units = u) } },
-            )
-            Text(
-                stringResource(R.string.settings_precision),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+        SettingsCard(stringResource(R.string.settings_precision)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
                 (1..3).forEach { n ->
                     ToggleButton(

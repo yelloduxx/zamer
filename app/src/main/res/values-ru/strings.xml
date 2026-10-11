@@ -85,8 +85,8 @@
     <string name="settings_title">Настройки</string>
     <string name="settings_device">Дальномер</string>
     <string name="settings_units">Единицы</string>
-    <string name="units_metric">Метры</string>
-    <string name="units_imperial">Футы</string>
+    <string name="units_metric">Метры (m)</string>
+    <string name="units_imperial">Футы (ft)</string>
     <string name="settings_precision">Знаков после запятой</string>
     <string name="settings_theme">Тема</string>
     <string name="theme_system">Системная</string>
@@ -113,9 +113,6 @@
     <string name="device_reference">Отсчёт от</string>
     <string name="reference_rear">Задней грани</string>
     <string name="reference_front">Передней грани</string>
-    <string name="device_unit">Единицы на дальномере</string>
-    <string name="device_unit_m">м</string>
-    <string name="device_unit_ft">ft</string>
-    <string name="device_settings_hint">Меняются настройки самого дальномера. Замер всегда получает миллиметры.</string>
-    <string name="device_settings_offline">Доступно, когда дальномер подключён.</string>
+    <string name="device_settings_hint">Точка отсчёта меняется на самом дальномере. Единицы меняются и в приложении, и на дальномере.</string>
+    <string name="device_settings_offline">Точку отсчёта можно сменить, когда дальномер подключён. Единицы на дальномере обновятся при подключении.</string>
 </resources>

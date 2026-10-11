@@ -60,11 +60,15 @@
     <string name="action_pair">Спарить</string>
 
     <string name="history_title">История</string>
-    <string name="history_empty">Здесь появятся ваши замеры</string>
+    <string name="history_tab_results">Результаты</string>
+    <string name="history_tab_readings">Замеры</string>
+    <string name="history_empty">Здесь появятся результаты замеров</string>
     <string name="history_search">Поиск по названию</string>
     <string name="history_search_empty">Ничего не найдено</string>
+    <string name="readings_empty">Здесь появится каждый замер с дальномера</string>
     <string name="history_clear">Очистить</string>
-    <string name="history_clear_confirm">Удалить все сохранённые замеры?</string>
+    <string name="history_clear_confirm">Удалить все сохранённые результаты?</string>
+    <string name="readings_clear_confirm">Удалить весь журнал замеров с дальномера?</string>
     <string name="today">Сегодня</string>
     <string name="yesterday">Вчера</string>
 

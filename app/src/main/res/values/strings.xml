@@ -60,11 +60,15 @@
     <string name="action_pair">Pair</string>
 
     <string name="history_title">History</string>
-    <string name="history_empty">Your measurements will appear here</string>
+    <string name="history_tab_results">Results</string>
+    <string name="history_tab_readings">Readings</string>
+    <string name="history_empty">Your results will appear here</string>
     <string name="history_search">Search by name</string>
     <string name="history_search_empty">Nothing found</string>
+    <string name="readings_empty">Every reading from the rangefinder will appear here</string>
     <string name="history_clear">Clear all</string>
-    <string name="history_clear_confirm">Delete all saved measurements?</string>
+    <string name="history_clear_confirm">Delete all saved results?</string>
+    <string name="readings_clear_confirm">Delete the whole log of readings from the rangefinder?</string>
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
 

@@ -6,22 +6,30 @@
     <string name="tab_history">История</string>
     <string name="tab_settings">Настройки</string>
 
-    <string name="mode_distance">Расстояние</string>
+    <string name="mode_distance">Длина</string>
     <string name="mode_area">Площадь</string>
     <string name="mode_volume">Объём</string>
+    <string name="mode_height">Высота</string>
 
     <string name="slot_length">Длина</string>
     <string name="slot_width">Ширина</string>
     <string name="slot_height">Высота</string>
+    <string name="slot_base">По полу</string>
+    <string name="slot_hypotenuse">До цели</string>
     <string name="slot_next_distance">Измерьте расстояние</string>
     <string name="slot_next_length">Теперь измерьте длину</string>
     <string name="slot_next_width">Теперь измерьте ширину</string>
     <string name="slot_next_height">Теперь измерьте высоту</string>
+    <string name="slot_next_base">Теперь измерьте по полу</string>
+    <string name="slot_next_hypotenuse">Теперь измерьте до цели</string>
+    <string name="height_howto">Поставьте прибор задним углом на пол: сначала измерьте по полу до точки под целью, затем, не сдвигая угол, — наклонно до цели.</string>
     <string name="hero_hint_start">Нажмите кнопку замера на дальномере</string>
 
     <string name="result_distance">Расстояние</string>
     <string name="result_area">Площадь</string>
     <string name="result_volume">Объём</string>
+    <string name="result_height">Высота</string>
+    <string name="height_impossible">Наклонный замер должен быть длиннее замера по полу</string>
     <string name="extra_perimeter">Периметр</string>
     <string name="extra_floor">Площадь пола</string>
     <string name="last_reading">Последний замер</string>

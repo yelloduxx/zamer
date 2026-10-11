@@ -15,7 +15,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothConnected
 import androidx.compose.material.icons.rounded.BluetoothDisabled
+import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.Straighten
+import androidx.compose.material.icons.rounded.ViewInAr
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
@@ -28,12 +32,15 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
 import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.ble.RangefinderRepository
+import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.Side
 import kotlinx.coroutines.delay
 
 enum class BtReadiness { NeedsPermission, BluetoothOff, Ready }
@@ -130,3 +137,28 @@ fun ConnectionPill(
 /** Equal-width, softly separated tiles use the same spacing everywhere. */
 val ScreenPadding = 16.dp
 val TileSpacing = Arrangement.spacedBy(12.dp)
+
+val MeasureMode.label: Int
+    get() = when (this) {
+        MeasureMode.DISTANCE -> R.string.mode_distance
+        MeasureMode.AREA -> R.string.mode_area
+        MeasureMode.VOLUME -> R.string.mode_volume
+        MeasureMode.HEIGHT -> R.string.mode_height
+    }
+
+val MeasureMode.icon: ImageVector
+    get() = when (this) {
+        MeasureMode.DISTANCE -> Icons.Rounded.Straighten
+        MeasureMode.AREA -> Icons.Rounded.CropSquare
+        MeasureMode.VOLUME -> Icons.Rounded.ViewInAr
+        MeasureMode.HEIGHT -> Icons.Rounded.Height
+    }
+
+val Side.label: Int
+    get() = when (this) {
+        Side.LENGTH -> R.string.slot_length
+        Side.WIDTH -> R.string.slot_width
+        Side.HEIGHT -> R.string.slot_height
+        Side.BASE -> R.string.slot_base
+        Side.HYPOTENUSE -> R.string.slot_hypotenuse
+    }

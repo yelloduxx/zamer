@@ -31,11 +31,15 @@ class ViewModelFactory(private val container: AppContainer) : ViewModelProvider.
 
 // ---------------------------------------------------------------- measuring
 
-/** A set of readings being collected for the chosen [mode]; [result] appears once every slot is filled. */
+/**
+ * A set of readings being collected for the chosen [mode]. Once every slot is filled the set is [complete];
+ * [result] is null for a complete set that describes no real shape.
+ */
 data class MeasureUiState(
     val mode: MeasureMode = MeasureMode.AREA,
-    val slots: List<Int?> = List(MeasureMode.AREA.slots) { null },
+    val slots: List<Int?> = List(MeasureMode.AREA.sides.size) { null },
     val active: Int = 0,
+    val complete: Boolean = false,
     val result: MeasureResult? = null,
     val lastMm: Int? = null,
     /** Increments with every reading so the UI can react (haptics, animation). */
@@ -61,15 +65,16 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
         var completed: MeasureResult? = null
         local.update { s ->
             // A new reading after a finished set starts the next set.
-            val base = if (s.result != null) List(s.mode.slots) { null } else s.slots
-            val start = if (s.result != null) 0 else s.active
+            val base = if (s.complete) List(s.mode.sides.size) { null } else s.slots
+            val start = if (s.complete) 0 else s.active
             val slots = base.toMutableList().also { it[start] = mm }
             val next = slots.indexOfFirst { it == null }
-            val result = if (next == -1) MeasureResult(s.mode, slots.filterNotNull()) else null
+            val result = if (next == -1) MeasureResult.of(s.mode, slots.filterNotNull()) else null
             completed = result
             s.copy(
                 slots = slots,
                 active = if (next == -1) start else next,
+                complete = next == -1,
                 result = result,
                 lastMm = mm,
                 readingCount = s.readingCount + 1,
@@ -83,19 +88,19 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     fun setMode(mode: MeasureMode) = local.update {
-        it.copy(mode = mode, slots = List(mode.slots) { null }, active = 0, result = null)
+        it.copy(mode = mode, slots = List(mode.sides.size) { null }, active = 0, complete = false, result = null)
     }
 
     /** Re-measure a specific side; the next reading replaces it. */
-    fun selectSlot(index: Int) = local.update { it.copy(active = index, result = null) }
+    fun selectSlot(index: Int) = local.update { it.copy(active = index, complete = false, result = null) }
 
     fun undo() = local.update { s ->
         val last = s.slots.indexOfLast { it != null }
-        if (last < 0) s else s.copy(slots = s.slots.toMutableList().also { it[last] = null }, active = last, result = null)
+        if (last < 0) s else s.copy(slots = s.slots.toMutableList().also { it[last] = null }, active = last, complete = false, result = null)
     }
 
     fun reset() = local.update {
-        it.copy(slots = List(it.mode.slots) { null }, active = 0, result = null, lastMm = null)
+        it.copy(slots = List(it.mode.sides.size) { null }, active = 0, complete = false, result = null, lastMm = null)
     }
 }
 

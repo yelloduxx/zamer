@@ -22,12 +22,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.IosShare
-import androidx.compose.material.icons.rounded.Straighten
-import androidx.compose.material.icons.rounded.ViewInAr
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -51,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -146,25 +142,24 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
     }
 }
 
-private fun modeIcon(mode: MeasureMode): ImageVector = when (mode) {
-    MeasureMode.DISTANCE -> Icons.Rounded.Straighten
-    MeasureMode.AREA -> Icons.Rounded.CropSquare
-    MeasureMode.VOLUME -> Icons.Rounded.ViewInAr
-}
-
-private fun describe(entry: HistoryEntry, formatter: Formatter): Pair<String, String> {
-    val result = MeasureResult(entry.mode, entry.valuesMm)
-    val total = formatter.primary(result)
+private fun describe(entry: HistoryEntry, formatter: Formatter, context: Context): Pair<String, String> {
+    val total = MeasureResult.of(entry.mode, entry.valuesMm)?.let(formatter::primary)?.toString() ?: "—"
     val unit = formatter.length(0).unit
-    val sides = entry.valuesMm.joinToString(" × ") { formatter.length(it).number } + " $unit"
-    return total.toString() to sides
+    val sides = when (entry.mode) {
+        MeasureMode.DISTANCE, MeasureMode.AREA, MeasureMode.VOLUME ->
+            entry.valuesMm.joinToString(" × ") { formatter.length(it).number } + " $unit"
+        MeasureMode.HEIGHT -> entry.valuesMm.zip(entry.mode.sides).joinToString(" · ") { (mm, side) ->
+            "${context.getString(side.label)} ${formatter.length(mm)}"
+        }
+    }
+    return total to sides
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HistoryCard(entry: HistoryEntry, formatter: Formatter) {
     val context = LocalContext.current
-    val (total, sides) = describe(entry, formatter)
+    val (total, sides) = describe(entry, formatter, context)
     val whenText = DateUtils.getRelativeDateTimeString(
         context, entry.timestamp, DateUtils.MINUTE_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, 0,
     ).toString()
@@ -174,7 +169,7 @@ private fun HistoryCard(entry: HistoryEntry, formatter: Formatter) {
                 Modifier.size(52.dp).clip(MaterialShapes.Cookie6Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(modeIcon(entry.mode), null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(entry.mode.icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {

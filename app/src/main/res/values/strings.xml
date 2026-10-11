@@ -9,19 +9,27 @@
     <string name="mode_distance">Distance</string>
     <string name="mode_area">Area</string>
     <string name="mode_volume">Volume</string>
+    <string name="mode_height">Height</string>
 
     <string name="slot_length">Length</string>
     <string name="slot_width">Width</string>
     <string name="slot_height">Height</string>
+    <string name="slot_base">Along floor</string>
+    <string name="slot_hypotenuse">To target</string>
     <string name="slot_next_distance">Measure a distance</string>
     <string name="slot_next_length">Now measure the length</string>
     <string name="slot_next_width">Now measure the width</string>
     <string name="slot_next_height">Now measure the height</string>
+    <string name="slot_next_base">Now measure along the floor</string>
+    <string name="slot_next_hypotenuse">Now measure to the target</string>
+    <string name="height_howto">Rest the rangefinder\'s back corner on the floor: first measure along the floor to the point below the target, then, without moving that corner, measure up to the target.</string>
     <string name="hero_hint_start">Press the measure button on the rangefinder</string>
 
     <string name="result_distance">Distance</string>
     <string name="result_area">Area</string>
     <string name="result_volume">Volume</string>
+    <string name="result_height">Height</string>
+    <string name="height_impossible">The slope reading must be longer than the floor reading</string>
     <string name="extra_perimeter">Perimeter</string>
     <string name="extra_floor">Floor area</string>
     <string name="last_reading">Last reading</string>

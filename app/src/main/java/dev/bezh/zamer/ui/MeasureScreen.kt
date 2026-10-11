@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material3.Button
@@ -51,7 +53,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,6 +60,7 @@ import dev.bezh.zamer.R
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.Quantity
+import dev.bezh.zamer.domain.Side
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -94,8 +96,16 @@ fun MeasureScreen(
         )
         ModeSelector(ui.mode, vm::setMode)
         Readout(ui, formatter, Modifier.weight(1f).fillMaxWidth())
-        if (ui.mode != MeasureMode.DISTANCE) {
+        if (ui.mode.sides.size > 1) {
             SlotRow(ui, formatter, vm::selectSlot)
+        }
+        if (ui.mode == MeasureMode.HEIGHT) {
+            Text(
+                stringResource(R.string.height_howto),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
         }
         ActionRow(canUndo = ui.canUndo, onUndo = vm::undo, onReset = vm::reset)
     }
@@ -119,6 +129,8 @@ private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit)
                     .weight(1f)
                     .height(56.dp)
                     .semantics { role = Role.RadioButton },
+                // Four labels share 360dp; the default padding would truncate them.
+                contentPadding = PaddingValues(horizontal = 4.dp),
                 shapes = when (i) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                     modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
@@ -128,7 +140,8 @@ private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit)
                 Text(
                     text = stringResource(mode.label),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
                     style = MaterialTheme.typography.labelLarge,
                 )
             }
@@ -136,24 +149,12 @@ private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit)
     }
 }
 
-private val MeasureMode.label
-    get() = when (this) {
-        MeasureMode.DISTANCE -> R.string.mode_distance
-        MeasureMode.AREA -> R.string.mode_area
-        MeasureMode.VOLUME -> R.string.mode_volume
-    }
-
-private fun slotName(index: Int) = when (index) {
-    0 -> R.string.slot_length
-    1 -> R.string.slot_width
-    else -> R.string.slot_height
-}
-
-private fun slotPrompt(mode: MeasureMode, index: Int) = when {
-    mode == MeasureMode.DISTANCE -> R.string.slot_next_distance
-    index == 0 -> R.string.slot_next_length
-    index == 1 -> R.string.slot_next_width
-    else -> R.string.slot_next_height
+private fun prompt(mode: MeasureMode, side: Side) = when (side) {
+    Side.LENGTH -> if (mode == MeasureMode.DISTANCE) R.string.slot_next_distance else R.string.slot_next_length
+    Side.WIDTH -> R.string.slot_next_width
+    Side.HEIGHT -> R.string.slot_next_height
+    Side.BASE -> R.string.slot_next_base
+    Side.HYPOTENUSE -> R.string.slot_next_hypotenuse
 }
 
 // ---------------------------------------------------------------- readout
@@ -163,12 +164,20 @@ private fun slotPrompt(mode: MeasureMode, index: Int) = when {
 private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
     val result = ui.result
-    val done = result != null
+    val impossible = ui.complete && result == null
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(44.dp),
-        color = if (done) scheme.primaryContainer else scheme.surfaceContainerHigh,
-        contentColor = if (done) scheme.onPrimaryContainer else scheme.onSurface,
+        color = when {
+            result != null -> scheme.primaryContainer
+            impossible -> scheme.errorContainer
+            else -> scheme.surfaceContainerHigh
+        },
+        contentColor = when {
+            result != null -> scheme.onPrimaryContainer
+            impossible -> scheme.onErrorContainer
+            else -> scheme.onSurface
+        },
     ) {
         Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.CenterStart) {
             val title: String
@@ -180,6 +189,7 @@ private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier
                         MeasureMode.DISTANCE -> R.string.result_distance
                         MeasureMode.AREA -> R.string.result_area
                         MeasureMode.VOLUME -> R.string.result_volume
+                        MeasureMode.HEIGHT -> R.string.result_height
                     },
                 )
                 quantity = formatter.primary(result)
@@ -187,8 +197,12 @@ private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier
                     val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
                     "$name · $it"
                 }
+            } else if (impossible) {
+                title = stringResource(R.string.height_impossible)
+                quantity = null
+                extra = null
             } else if (ui.lastMm != null) {
-                title = stringResource(slotPrompt(ui.mode, ui.active))
+                title = stringResource(prompt(ui.mode, ui.mode.sides[ui.active]))
                 quantity = formatter.length(ui.lastMm)
                 extra = stringResource(R.string.last_reading)
             } else {
@@ -206,7 +220,7 @@ private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            Icons.Rounded.Straighten,
+                            if (impossible) Icons.Rounded.ErrorOutline else Icons.Rounded.Straighten,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -261,7 +275,7 @@ private fun LocalContentColorAlpha(alpha: Float) =
 private fun SlotRow(ui: MeasureUiState, formatter: Formatter, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = TileSpacing) {
         ui.slots.forEachIndexed { i, mm ->
-            val waiting = ui.result == null && i == ui.active
+            val waiting = !ui.complete && i == ui.active
             Surface(
                 onClick = { onSelect(i) },
                 modifier = Modifier.weight(1f),
@@ -271,7 +285,7 @@ private fun SlotRow(ui: MeasureUiState, formatter: Formatter, onSelect: (Int) ->
             ) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        stringResource(slotName(i)),
+                        stringResource(ui.mode.sides[i].label),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

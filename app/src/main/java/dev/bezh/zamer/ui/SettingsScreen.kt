@@ -1,6 +1,8 @@
 package dev.bezh.zamer.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,14 +10,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -23,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
@@ -63,6 +77,8 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
             style = MaterialTheme.typography.displaySmall,
             modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
         )
+
+        LanguageCard()
 
         SettingsCard(stringResource(R.string.settings_device)) {
             paired?.let { d ->
@@ -176,12 +192,58 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
     }
 }
 
+/** Languages the app is translated into, each named in itself; a null tag follows the system. */
+private val Languages = listOf(
+    null to null,
+    "en" to "English",
+    "ru" to "Русский",
+    "es" to "Español",
+    "de" to "Deutsch",
+    "zh-CN" to "简体中文",
+)
+
+/** The per-app language. Android stores it and restarts the screen in the new language. */
 @Composable
-private fun SettingsCard(title: String?, content: @Composable () -> Unit) {
+private fun LanguageCard() {
+    var open by remember { mutableStateOf(false) }
+    val current = AppCompatDelegate.getApplicationLocales()[0]?.language
+    val (_, name) = Languages.firstOrNull { (tag, _) -> tag != null && tag.substringBefore('-') == current } ?: Languages.first()
+    SettingsCard(stringResource(R.string.settings_language), icon = { Icon(Icons.Rounded.Translate, null, Modifier.padding(end = 6.dp).size(18.dp)) }) {
+        Box {
+            Row(
+                Modifier.fillMaxWidth().height(56.dp).clickable { open = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(name ?: stringResource(R.string.language_system), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Icon(Icons.Rounded.ExpandMore, contentDescription = null)
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                Languages.forEach { (tag, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label ?: stringResource(R.string.language_system)) },
+                        trailingIcon = { if (label == name) Icon(Icons.Rounded.Check, null) },
+                        onClick = {
+                            open = false
+                            AppCompatDelegate.setApplicationLocales(
+                                if (tag == null) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(tag),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsCard(title: String?, icon: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Surface(shape = RoundedCornerShape(32.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (title != null) {
-                Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) { icon?.invoke() }
+                    Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
             }
             content()
         }

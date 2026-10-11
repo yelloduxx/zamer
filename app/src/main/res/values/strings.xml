@@ -115,4 +115,6 @@
     <string name="reference_front">Front edge</string>
     <string name="device_settings_hint">The reference edge changes on the rangefinder itself. Units change in the app and on the rangefinder.</string>
     <string name="device_settings_offline">The reference edge can be changed while the rangefinder is connected. Units reach the rangefinder when it connects.</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System default</string>
 </resources>

@@ -16,19 +16,25 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
@@ -40,8 +46,10 @@ import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,18 +61,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,7 +107,6 @@ fun MeasureScreen(
     val formatter = remember(ui.settings.units, ui.settings.decimals) {
         Formatter(ui.settings.units, ui.settings.decimals)
     }
-    var naming by rememberSaveable { mutableStateOf<Long?>(null) }
     val haptics = LocalHapticFeedback.current
     // Readings that arrived before this screen was shown (e.g. while on History) must not buzz on return.
     val countOnEntry = remember { ui.readingCount }
@@ -104,6 +118,9 @@ fun MeasureScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding)
+            .consumeWindowInsets(contentPadding)
+            // Shrinks the card while typing a name, so the field stays above the keyboard.
+            .imePadding()
             .padding(bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -147,7 +164,7 @@ fun MeasureScreen(
                 saved = ui.saved,
                 formatter = formatter,
                 onSelectSlot = { if (current) vm.selectSlot(it) },
-                onName = { naming = it.id },
+                onRename = vm::rename,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -155,17 +172,6 @@ fun MeasureScreen(
             RecentReadings(ui.recent, formatter, inset) { vm.put(it) }
         }
         ActionRow(canUndo = ws.draft().values.any { it != null }, onUndo = vm::undo, onReset = vm::reset, modifier = inset)
-    }
-
-    naming?.let(ui.saved::get)?.let { entry ->
-        NameDialog(
-            initial = entry.title,
-            onDismiss = { naming = null },
-            onSave = {
-                vm.rename(entry.id, it)
-                naming = null
-            },
-        )
     }
 }
 
@@ -179,7 +185,7 @@ private fun ModePage(
     saved: Map<Long, HistoryEntry>,
     formatter: Formatter,
     onSelectSlot: (Int) -> Unit,
-    onName: (HistoryEntry) -> Unit,
+    onRename: (Long, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val draft = ws.draft(mode)
@@ -192,7 +198,7 @@ private fun ModePage(
             lastMm = lastMm,
             readingCount = readingCount,
             formatter = formatter,
-            onName = onName,
+            onRename = onRename,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
         if (mode.sides.size > 1) {
@@ -267,7 +273,7 @@ private fun Readout(
     lastMm: Int?,
     readingCount: Int,
     formatter: Formatter,
-    onName: (HistoryEntry) -> Unit,
+    onRename: (Long, String) -> Unit,
     modifier: Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -286,98 +292,143 @@ private fun Readout(
             else -> scheme.onSurface
         },
     ) {
-        Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.CenterStart) {
-            val title: String
-            val quantity: Quantity?
-            val extra: String?
-            if (result != null) {
-                title = stringResource(
-                    when (result.mode) {
-                        MeasureMode.DISTANCE -> R.string.result_distance
-                        MeasureMode.AREA -> R.string.result_area
-                        MeasureMode.VOLUME -> R.string.result_volume
-                        MeasureMode.HEIGHT -> R.string.result_height
-                    },
-                )
-                quantity = formatter.primary(result)
-                extra = formatter.secondary(result)?.let {
-                    val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
-                    "$name · $it"
-                }
-            } else if (impossible) {
-                title = stringResource(R.string.height_impossible)
-                quantity = null
-                extra = null
-            } else if (draft.next != null && (lastMm != null || draft.values.any { it != null })) {
-                title = stringResource(prompt(mode, mode.sides[draft.next]))
-                quantity = lastMm?.let(formatter::length)
-                extra = lastMm?.let { stringResource(R.string.last_reading) }
-            } else {
-                title = stringResource(R.string.hero_hint_start)
-                quantity = null
-                extra = null
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (quantity == null) {
-                    Box(
-                        Modifier
-                            .size(112.dp)
-                            .clip(MaterialShapes.Cookie9Sided.toShape())
-                            .background(MaterialTheme.colorScheme.secondaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            if (impossible) Icons.Rounded.ErrorOutline else Icons.Rounded.Straighten,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = LocalContentColorAlpha(0.85f),
-                )
-                if (quantity != null) {
-                    AnimatedContent(
-                        targetState = quantity to readingCount,
-                        transitionSpec = {
-                            (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
-                                (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))
+        Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                val title: String
+                val quantity: Quantity?
+                val extra: String?
+                if (result != null) {
+                    title = stringResource(
+                        when (result.mode) {
+                            MeasureMode.DISTANCE -> R.string.result_distance
+                            MeasureMode.AREA -> R.string.result_area
+                            MeasureMode.VOLUME -> R.string.result_volume
+                            MeasureMode.HEIGHT -> R.string.result_height
                         },
-                        label = "reading",
-                    ) { (q, _) ->
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(
-                                text = q.number,
-                                style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp, lineHeight = 92.sp),
-                                maxLines = 1,
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text = q.unit,
-                                style = MaterialTheme.typography.headlineLarge,
-                                modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                    quantity = formatter.primary(result)
+                    extra = formatter.secondary(result)?.let {
+                        val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
+                        "$name · $it"
+                    }
+                } else if (impossible) {
+                    title = stringResource(R.string.height_impossible)
+                    quantity = null
+                    extra = null
+                } else if (draft.next != null && (lastMm != null || draft.values.any { it != null })) {
+                    title = stringResource(prompt(mode, mode.sides[draft.next]))
+                    quantity = lastMm?.let(formatter::length)
+                    extra = lastMm?.let { stringResource(R.string.last_reading) }
+                } else {
+                    title = stringResource(R.string.hero_hint_start)
+                    quantity = null
+                    extra = null
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (quantity == null) {
+                        Box(
+                            Modifier
+                                .size(112.dp)
+                                .clip(MaterialShapes.Cookie9Sided.toShape())
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                if (impossible) Icons.Rounded.ErrorOutline else Icons.Rounded.Straighten,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = LocalContentColorAlpha(0.85f),
+                    )
+                    if (quantity != null) {
+                        AnimatedContent(
+                            targetState = quantity to readingCount,
+                            transitionSpec = {
+                                (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
+                                    (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))
+                            },
+                            label = "reading",
+                        ) { (q, _) ->
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(
+                                    text = q.number,
+                                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp, lineHeight = 92.sp),
+                                    maxLines = 1,
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = q.unit,
+                                    style = MaterialTheme.typography.headlineLarge,
+                                    modifier = Modifier.padding(bottom = 12.dp),
+                                )
+                            }
+                        }
+                    }
+                    if (extra != null) {
+                        Text(text = extra, style = MaterialTheme.typography.titleMedium, color = LocalContentColorAlpha(0.75f))
                     }
                 }
-                if (extra != null) {
-                    Text(text = extra, style = MaterialTheme.typography.titleMedium, color = LocalContentColorAlpha(0.75f))
-                }
-                if (result != null && saved != null) {
-                    Spacer(Modifier.height(6.dp))
-                    FilledTonalButton(onClick = { onName(saved) }, shapes = ButtonDefaults.shapes()) {
-                        Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(saved.title ?: stringResource(R.string.name_it), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+            }
+            if (result != null && saved != null) {
+                InlineName(saved, onRename)
             }
         }
     }
+}
+
+/** The result's name, edited in place: tap the button and it becomes a text field. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun InlineName(saved: HistoryEntry, onRename: (Long, String) -> Unit) {
+    var editing by rememberSaveable(saved.id) { mutableStateOf(false) }
+    if (!editing) {
+        FilledTonalButton(onClick = { editing = true }, shapes = ButtonDefaults.shapes()) {
+            Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(saved.title ?: stringResource(R.string.name_it), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        return
+    }
+    var text by rememberSaveable(saved.id, stateSaver = TextFieldValue.Saver) {
+        val initial = saved.title.orEmpty()
+        mutableStateOf(TextFieldValue(initial, TextRange(initial.length)))
+    }
+    val focus = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    fun commit() {
+        onRename(saved.id, text.text)
+        editing = false
+    }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it },
+        singleLine = true,
+        shape = CircleShape,
+        placeholder = { Text(stringResource(R.string.name_hint)) },
+        trailingIcon = {
+            IconButton(onClick = ::commit) {
+                Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.action_save))
+            }
+        },
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { commit() }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focus)
+            // Tapping elsewhere keeps what was typed rather than throwing it away.
+            .onFocusChanged {
+                if (focused && !it.isFocused) commit()
+                focused = it.isFocused
+            },
+    )
 }
 
 @Composable

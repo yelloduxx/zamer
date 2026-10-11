@@ -57,10 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
+import dev.bezh.zamer.domain.Draft
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.MeasureResult
 import dev.bezh.zamer.domain.Quantity
 import dev.bezh.zamer.domain.Side
+import dev.bezh.zamer.domain.Workspace
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -94,12 +97,39 @@ fun MeasureScreen(
             onEnableBluetooth = onEnableBluetooth,
             onPair = onPair,
         )
-        ModeSelector(ui.mode, vm::setMode)
-        Readout(ui, formatter, Modifier.weight(1f).fillMaxWidth())
-        if (ui.mode.sides.size > 1) {
-            SlotRow(ui, formatter, vm::selectSlot)
+        val ws = ui.workspace ?: return@Column
+        ModeSelector(ws.mode, vm::setMode)
+        ModePage(
+            mode = ws.mode,
+            ws = ws,
+            lastMm = ui.lastMm,
+            readingCount = ui.readingCount,
+            formatter = formatter,
+            onSelectSlot = vm::selectSlot,
+            modifier = Modifier.weight(1f),
+        )
+        ActionRow(canUndo = ws.draft().values.any { it != null }, onUndo = vm::undo, onReset = vm::reset)
+    }
+}
+
+/** Everything that belongs to one mode: its readout, its slots and how to measure it. */
+@Composable
+private fun ModePage(
+    mode: MeasureMode,
+    ws: Workspace,
+    lastMm: Int?,
+    readingCount: Int,
+    formatter: Formatter,
+    onSelectSlot: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val draft = ws.draft(mode)
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Readout(mode, draft, ws.result(mode), lastMm, readingCount, formatter, Modifier.weight(1f).fillMaxWidth())
+        if (mode.sides.size > 1) {
+            SlotRow(mode, draft, formatter, onSelectSlot)
         }
-        if (ui.mode == MeasureMode.HEIGHT) {
+        if (mode == MeasureMode.HEIGHT) {
             Text(
                 stringResource(R.string.height_howto),
                 style = MaterialTheme.typography.bodyMedium,
@@ -107,7 +137,6 @@ fun MeasureScreen(
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
-        ActionRow(canUndo = ui.canUndo, onUndo = vm::undo, onReset = vm::reset)
     }
 }
 
@@ -161,10 +190,17 @@ private fun prompt(mode: MeasureMode, side: Side) = when (side) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier) {
+private fun Readout(
+    mode: MeasureMode,
+    draft: Draft,
+    result: MeasureResult?,
+    lastMm: Int?,
+    readingCount: Int,
+    formatter: Formatter,
+    modifier: Modifier,
+) {
     val scheme = MaterialTheme.colorScheme
-    val result = ui.result
-    val impossible = ui.complete && result == null
+    val impossible = draft.isComplete && result == null
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(44.dp),
@@ -201,10 +237,10 @@ private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier
                 title = stringResource(R.string.height_impossible)
                 quantity = null
                 extra = null
-            } else if (ui.lastMm != null) {
-                title = stringResource(prompt(ui.mode, ui.mode.sides[ui.active]))
-                quantity = formatter.length(ui.lastMm)
-                extra = stringResource(R.string.last_reading)
+            } else if (draft.next != null && (lastMm != null || draft.values.any { it != null })) {
+                title = stringResource(prompt(mode, mode.sides[draft.next]))
+                quantity = lastMm?.let(formatter::length)
+                extra = lastMm?.let { stringResource(R.string.last_reading) }
             } else {
                 title = stringResource(R.string.hero_hint_start)
                 quantity = null
@@ -235,7 +271,7 @@ private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier
                 )
                 if (quantity != null) {
                     AnimatedContent(
-                        targetState = quantity to ui.readingCount,
+                        targetState = quantity to readingCount,
                         transitionSpec = {
                             (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
                                 (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))
@@ -272,10 +308,10 @@ private fun LocalContentColorAlpha(alpha: Float) =
 // ------------------------------------------------------------------ slots
 
 @Composable
-private fun SlotRow(ui: MeasureUiState, formatter: Formatter, onSelect: (Int) -> Unit) {
+private fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = TileSpacing) {
-        ui.slots.forEachIndexed { i, mm ->
-            val waiting = !ui.complete && i == ui.active
+        draft.values.forEachIndexed { i, mm ->
+            val waiting = i == draft.next
             Surface(
                 onClick = { onSelect(i) },
                 modifier = Modifier.weight(1f),
@@ -285,7 +321,7 @@ private fun SlotRow(ui: MeasureUiState, formatter: Formatter, onSelect: (Int) ->
             ) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        stringResource(ui.mode.sides[i].label),
+                        stringResource(mode.sides[i].label),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

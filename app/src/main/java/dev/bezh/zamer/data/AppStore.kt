@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.UnitSystem
+import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
@@ -17,6 +18,9 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "zamer")
+
+/** How stored JSON is read; unknown keys are tolerated so older app versions can read newer data. */
+internal val StoreJson = Json { ignoreUnknownKeys = true }
 
 /** The rangefinder this phone is paired with. [tokenHex] is the secret from the pairing handshake. */
 data class PairedDevice(val address: String, val name: String, val tokenHex: String)
@@ -39,7 +43,7 @@ data class HistoryEntry(
 
 class AppStore(private val context: Context) {
     private val store get() = context.dataStore
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = StoreJson
 
     // ---- pairing ----
 
@@ -115,6 +119,17 @@ class AppStore(private val context: Context) {
         store.edit { it.remove(HISTORY) }
     }
 
+    // ---- measuring ----
+
+    val workspace: Flow<Workspace> = store.data.map { decodeWorkspace(it[WORKSPACE]) }
+
+    suspend fun updateWorkspace(transform: (Workspace) -> Workspace) {
+        store.edit { p -> p[WORKSPACE] = json.encodeToString(transform(decodeWorkspace(p[WORKSPACE]))) }
+    }
+
+    private fun decodeWorkspace(raw: String?): Workspace =
+        raw?.let { runCatching { json.decodeFromString<Workspace>(it) }.getOrNull() } ?: Workspace()
+
     private fun decodeHistory(raw: String?): List<HistoryEntry> =
         raw?.let { runCatching { json.decodeFromString<List<HistoryEntry>>(it) }.getOrNull() } ?: emptyList()
 
@@ -129,5 +144,6 @@ class AppStore(private val context: Context) {
         val HAPTICS = booleanPreferencesKey("haptics")
         val DYNAMIC = booleanPreferencesKey("dynamic_color")
         val HISTORY = stringPreferencesKey("history_json")
+        val WORKSPACE = stringPreferencesKey("workspace_json")
     }
 }

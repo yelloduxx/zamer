@@ -10,7 +10,7 @@ import dev.bezh.zamer.ble.PairOutcome
 import dev.bezh.zamer.data.HistoryEntry
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.domain.MeasureMode
-import dev.bezh.zamer.domain.MeasureResult
+import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,76 +31,63 @@ class ViewModelFactory(private val container: AppContainer) : ViewModelProvider.
 
 // ---------------------------------------------------------------- measuring
 
-/**
- * A set of readings being collected for the chosen [mode]. Once every slot is filled the set is [complete];
- * [result] is null for a complete set that describes no real shape.
- */
 data class MeasureUiState(
-    val mode: MeasureMode = MeasureMode.AREA,
-    val slots: List<Int?> = List(MeasureMode.AREA.sides.size) { null },
-    val active: Int = 0,
-    val complete: Boolean = false,
-    val result: MeasureResult? = null,
+    /** Null until the stored workspace has been read. */
+    val workspace: Workspace? = null,
+    /** The last value put into the current mode's draft during this session. */
     val lastMm: Int? = null,
-    /** Increments with every reading so the UI can react (haptics, animation). */
+    /** Increments with every device reading so the UI can react (haptics, animation). */
     val readingCount: Int = 0,
     val link: LinkState = LinkState.Searching,
     val settings: Settings = Settings(),
-) {
-    val canUndo get() = slots.any { it != null }
-}
+)
+
+private data class Session(val lastMm: Int? = null, val readingCount: Int = 0)
 
 class MeasureViewModel(private val c: AppContainer) : ViewModel() {
-    private val local = MutableStateFlow(MeasureUiState())
+    private val session = MutableStateFlow(Session())
 
-    val ui: StateFlow<MeasureUiState> = combine(local, c.repository.state, c.store.settings) { s, link, settings ->
-        s.copy(link = link, settings = settings)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasureUiState())
+    val ui: StateFlow<MeasureUiState> =
+        combine(c.store.workspace, session, c.repository.state, c.store.settings) { ws, s, link, settings ->
+            MeasureUiState(ws, s.lastMm, s.readingCount, link, settings)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasureUiState())
 
     init {
-        viewModelScope.launch { c.repository.readings.collect { onReading(it.millimetres) } }
+        viewModelScope.launch { c.repository.readings.collect { put(it.millimetres, fromDevice = true) } }
     }
 
-    private fun onReading(mm: Int) {
-        var completed: MeasureResult? = null
-        local.update { s ->
-            // A new reading after a finished set starts the next set.
-            val base = if (s.complete) List(s.mode.sides.size) { null } else s.slots
-            val start = if (s.complete) 0 else s.active
-            val slots = base.toMutableList().also { it[start] = mm }
-            val next = slots.indexOfFirst { it == null }
-            val result = if (next == -1) MeasureResult.of(s.mode, slots.filterNotNull()) else null
-            completed = result
-            s.copy(
-                slots = slots,
-                active = if (next == -1) start else next,
-                complete = next == -1,
-                result = result,
-                lastMm = mm,
-                readingCount = s.readingCount + 1,
-            )
-        }
-        completed?.let { r ->
-            viewModelScope.launch {
-                c.store.addHistory(HistoryEntry(System.nanoTime(), System.currentTimeMillis(), r.mode, r.valuesMm))
+    /** Treats [mm] as the next reading; [fromDevice] readings also buzz. */
+    fun put(mm: Int, fromDevice: Boolean = false) {
+        session.update { it.copy(lastMm = mm, readingCount = it.readingCount + if (fromDevice) 1 else 0) }
+        viewModelScope.launch {
+            var completed: HistoryEntry? = null
+            c.store.updateWorkspace { ws ->
+                val id = System.nanoTime()
+                val (next, result) = ws.put(mm, id)
+                completed = result?.let { HistoryEntry(id, System.currentTimeMillis(), it.mode, it.valuesMm) }
+                next
             }
+            completed?.let { c.store.addHistory(it) }
         }
     }
 
-    fun setMode(mode: MeasureMode) = local.update {
-        it.copy(mode = mode, slots = List(mode.sides.size) { null }, active = 0, complete = false, result = null)
+    fun setMode(mode: MeasureMode) {
+        session.update { it.copy(lastMm = null) }
+        edit { it.copy(mode = mode) }
     }
 
     /** Re-measure a specific side; the next reading replaces it. */
-    fun selectSlot(index: Int) = local.update { it.copy(active = index, complete = false, result = null) }
+    fun selectSlot(index: Int) = edit { it.select(index) }
 
-    fun undo() = local.update { s ->
-        val last = s.slots.indexOfLast { it != null }
-        if (last < 0) s else s.copy(slots = s.slots.toMutableList().also { it[last] = null }, active = last, complete = false, result = null)
+    fun undo() = edit { it.undo() }
+
+    fun reset() {
+        session.update { it.copy(lastMm = null) }
+        edit { it.reset() }
     }
 
-    fun reset() = local.update {
-        it.copy(slots = List(it.mode.sides.size) { null }, active = 0, complete = false, result = null, lastMm = null)
+    private fun edit(transform: (Workspace) -> Workspace) {
+        viewModelScope.launch { c.store.updateWorkspace(transform) }
     }
 }
 

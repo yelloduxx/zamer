@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
@@ -50,6 +52,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -98,33 +102,56 @@ fun MeasureScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding)
-            .padding(horizontal = ScreenPadding)
             .padding(bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        val inset = Modifier.padding(horizontal = ScreenPadding)
         ConnectionPill(
             link = ui.link,
             onRequestPermission = onRequestPermission,
             onEnableBluetooth = onEnableBluetooth,
             onPair = onPair,
+            modifier = inset,
         )
+        // The pager starts on the stored mode, so it waits for the workspace to load.
         val ws = ui.workspace ?: return@Column
-        ModeSelector(ws.mode, vm::setMode)
-        ModePage(
-            mode = ws.mode,
-            ws = ws,
-            lastMm = ui.lastMm,
-            readingCount = ui.readingCount,
-            saved = ui.saved,
-            formatter = formatter,
-            onSelectSlot = vm::selectSlot,
-            onName = { naming = it.id },
-            modifier = Modifier.weight(1f),
-        )
-        if (ui.recent.isNotEmpty()) {
-            RecentReadings(ui.recent, formatter) { vm.put(it) }
+        val pager = rememberPagerState(initialPage = ws.mode.ordinal) { MeasureMode.entries.size }
+        val mode by rememberUpdatedState(ws.mode)
+        LaunchedEffect(pager) {
+            snapshotFlow { pager.settledPage }.collect { page ->
+                MeasureMode.entries[page].let { if (it != mode) vm.setMode(it) }
+            }
         }
-        ActionRow(canUndo = ws.draft().values.any { it != null }, onUndo = vm::undo, onReset = vm::reset)
+        LaunchedEffect(ws.mode) {
+            if (pager.currentPage != ws.mode.ordinal) pager.animateScrollToPage(ws.mode.ordinal)
+        }
+
+        ModeSelector(ws.mode, vm::setMode, inset)
+        HorizontalPager(
+            state = pager,
+            contentPadding = PaddingValues(horizontal = ScreenPadding),
+            pageSpacing = ScreenPadding,
+            verticalAlignment = Alignment.Top,
+            modifier = Modifier.weight(1f),
+        ) { page ->
+            val pageMode = MeasureMode.entries[page]
+            val current = pageMode == ws.mode
+            ModePage(
+                mode = pageMode,
+                ws = ws,
+                lastMm = ui.lastMm.takeIf { current },
+                readingCount = ui.readingCount,
+                saved = ui.saved,
+                formatter = formatter,
+                onSelectSlot = { if (current) vm.selectSlot(it) },
+                onName = { naming = it.id },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        if (ui.recent.isNotEmpty()) {
+            RecentReadings(ui.recent, formatter, inset) { vm.put(it) }
+        }
+        ActionRow(canUndo = ws.draft().values.any { it != null }, onUndo = vm::undo, onReset = vm::reset, modifier = inset)
     }
 
     naming?.let(ui.saved::get)?.let { entry ->
@@ -183,10 +210,10 @@ private fun ModePage(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit) {
+private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit, modifier: Modifier = Modifier) {
     val modes = MeasureMode.entries
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         modes.forEachIndexed { i, mode ->
@@ -391,9 +418,9 @@ private fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSel
 
 /** Earlier readings, so a value measured once can be reused without measuring again. */
 @Composable
-private fun RecentReadings(values: List<Int>, formatter: Formatter, onPick: (Int) -> Unit) {
+private fun RecentReadings(values: List<Int>, formatter: Formatter, modifier: Modifier = Modifier, onPick: (Int) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -412,9 +439,9 @@ private fun RecentReadings(values: List<Int>, formatter: Formatter, onPick: (Int
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit) {
+private fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit, modifier: Modifier = Modifier) {
     val padding = PaddingValues(horizontal = 16.dp)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         FilledTonalButton(
             onClick = onUndo,
             enabled = canUndo,

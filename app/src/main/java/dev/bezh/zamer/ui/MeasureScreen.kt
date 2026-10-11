@@ -128,7 +128,8 @@ fun MeasureScreen(
             if (pager.currentPage != ws.mode.ordinal) pager.animateScrollToPage(ws.mode.ordinal)
         }
 
-        ModeSelector(ws.mode, vm::setMode, inset)
+        // Highlight the page the swipe is heading to, not the one it settles on, so the buttons keep up.
+        ModeSelector(MeasureMode.entries[pager.targetPage], vm::setMode, inset)
         HorizontalPager(
             state = pager,
             contentPadding = PaddingValues(horizontal = ScreenPadding),

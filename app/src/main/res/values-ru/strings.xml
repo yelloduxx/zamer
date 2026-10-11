@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Замер</string>
+
+    <string name="tab_measure">Замер</string>
+    <string name="tab_history">История</string>
+    <string name="tab_settings">Настройки</string>
+
+    <string name="mode_distance">Расстояние</string>
+    <string name="mode_area">Площадь</string>
+    <string name="mode_volume">Объём</string>
+
+    <string name="slot_length">Длина</string>
+    <string name="slot_width">Ширина</string>
+    <string name="slot_height">Высота</string>
+    <string name="slot_next_distance">Измерьте расстояние</string>
+    <string name="slot_next_length">Теперь измерьте длину</string>
+    <string name="slot_next_width">Теперь измерьте ширину</string>
+    <string name="slot_next_height">Теперь измерьте высоту</string>
+    <string name="hero_hint_start">Нажмите кнопку замера на дальномере</string>
+
+    <string name="result_distance">Расстояние</string>
+    <string name="result_area">Площадь</string>
+    <string name="result_volume">Объём</string>
+    <string name="extra_perimeter">Периметр</string>
+    <string name="extra_floor">Площадь пола</string>
+    <string name="last_reading">Последний замер</string>
+
+    <string name="action_undo">Отменить</string>
+    <string name="action_reset">Заново</string>
+    <string name="action_copy">Копировать</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="copied">Скопировано</string>
+
+    <string name="status_connected">Подключено</string>
+    <string name="status_searching">Ищем дальномер…</string>
+    <string name="status_connecting">Подключаемся…</string>
+    <string name="status_bt_off">Bluetooth выключен</string>
+    <string name="status_permission">Нужен доступ к Bluetooth</string>
+    <string name="status_repair">Нужно спарить заново</string>
+    <string name="status_not_paired">Дальномер не выбран</string>
+    <string name="action_enable_bt">Включить</string>
+    <string name="action_allow">Разрешить</string>
+    <string name="action_pair">Спарить</string>
+
+    <string name="history_title">История</string>
+    <string name="history_empty">Здесь появятся ваши замеры</string>
+    <string name="history_clear">Очистить</string>
+    <string name="history_clear_confirm">Удалить все сохранённые замеры?</string>
+    <string name="today">Сегодня</string>
+    <string name="yesterday">Вчера</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_device">Дальномер</string>
+    <string name="settings_units">Единицы</string>
+    <string name="units_metric">Метры</string>
+    <string name="units_imperial">Футы</string>
+    <string name="settings_precision">Знаков после запятой</string>
+    <string name="settings_keep_on">Не гасить экран</string>
+    <string name="settings_haptics">Вибрация при каждом замере</string>
+    <string name="settings_dynamic">Цвета из обоев</string>
+    <string name="settings_repair">Спарить заново</string>
+    <string name="settings_forget">Забыть дальномер</string>
+    <string name="settings_forget_confirm">Приложение перестанет подключаться к этому дальномеру, пока вы не спарите его снова.</string>
+    <string name="settings_about">Спаривание происходит напрямую между телефоном и дальномером. Аккаунт Mi и облако не используются.</string>
+
+    <string name="pairing_title">Подключим дальномер</string>
+    <string name="pairing_intro">Включите его, чтобы значок Bluetooth мигал, и держите рядом. Аккаунт Mi не нужен.</string>
+    <string name="pairing_searching">Ищем…</string>
+    <string name="pairing_none_found">Пока ничего не найдено. Дальномер включён и не подключён к другому приложению?</string>
+    <string name="pairing_in_progress">Спариваем с %1$s…</string>
+    <string name="pairing_failed">Не удалось спарить: %1$s</string>
+    <string name="pairing_retry">Повторить</string>
+    <string name="pairing_need_permission">Для поиска дальномера приложению нужен доступ к Bluetooth.</string>
+    <string name="pairing_need_bluetooth">Включите Bluetooth, чтобы продолжить.</string>
+</resources>

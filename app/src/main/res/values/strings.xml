@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zamer</string>
+
+    <string name="tab_measure">Measure</string>
+    <string name="tab_history">History</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="mode_distance">Distance</string>
+    <string name="mode_area">Area</string>
+    <string name="mode_volume">Volume</string>
+
+    <string name="slot_length">Length</string>
+    <string name="slot_width">Width</string>
+    <string name="slot_height">Height</string>
+    <string name="slot_next_distance">Measure a distance</string>
+    <string name="slot_next_length">Now measure the length</string>
+    <string name="slot_next_width">Now measure the width</string>
+    <string name="slot_next_height">Now measure the height</string>
+    <string name="hero_hint_start">Press the measure button on the rangefinder</string>
+
+    <string name="result_distance">Distance</string>
+    <string name="result_area">Area</string>
+    <string name="result_volume">Volume</string>
+    <string name="extra_perimeter">Perimeter</string>
+    <string name="extra_floor">Floor area</string>
+    <string name="last_reading">Last reading</string>
+
+    <string name="action_undo">Undo</string>
+    <string name="action_reset">Start over</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="copied">Copied</string>
+
+    <string name="status_connected">Connected</string>
+    <string name="status_searching">Looking for the rangefinder…</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_bt_off">Bluetooth is off</string>
+    <string name="status_permission">Bluetooth access needed</string>
+    <string name="status_repair">Pair again</string>
+    <string name="status_not_paired">No rangefinder yet</string>
+    <string name="action_enable_bt">Turn on</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_pair">Pair</string>
+
+    <string name="history_title">History</string>
+    <string name="history_empty">Your measurements will appear here</string>
+    <string name="history_clear">Clear all</string>
+    <string name="history_clear_confirm">Delete all saved measurements?</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_device">Rangefinder</string>
+    <string name="settings_units">Units</string>
+    <string name="units_metric">Metres</string>
+    <string name="units_imperial">Feet</string>
+    <string name="settings_precision">Decimal places</string>
+    <string name="settings_keep_on">Keep the screen on</string>
+    <string name="settings_haptics">Vibrate on each reading</string>
+    <string name="settings_dynamic">Colours from wallpaper</string>
+    <string name="settings_repair">Pair again</string>
+    <string name="settings_forget">Forget rangefinder</string>
+    <string name="settings_forget_confirm">The app will stop connecting to this rangefinder until you pair it again.</string>
+    <string name="settings_about">Pairing happens directly between this phone and the rangefinder. No Mi account or cloud is used.</string>
+
+    <string name="pairing_title">Connect your rangefinder</string>
+    <string name="pairing_intro">Switch it on so the Bluetooth icon blinks and keep it close. No Mi account is needed.</string>
+    <string name="pairing_searching">Searching…</string>
+    <string name="pairing_none_found">Nothing found yet. Is it switched on and not connected to another app?</string>
+    <string name="pairing_in_progress">Pairing with %1$s…</string>
+    <string name="pairing_failed">Pairing failed: %1$s</string>
+    <string name="pairing_retry">Try again</string>
+    <string name="pairing_need_permission">The app needs Bluetooth access to find your rangefinder.</string>
+    <string name="pairing_need_bluetooth">Turn Bluetooth on to continue.</string>
+</resources>

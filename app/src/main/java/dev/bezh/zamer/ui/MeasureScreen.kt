@@ -1,0 +1,320 @@
+package dev.bezh.zamer.ui
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Straighten
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.bezh.zamer.R
+import dev.bezh.zamer.domain.Formatter
+import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.Quantity
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun MeasureScreen(
+    vm: MeasureViewModel,
+    contentPadding: PaddingValues,
+    onPair: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onEnableBluetooth: () -> Unit,
+) {
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    val formatter = remember(ui.settings.units, ui.settings.decimals) {
+        Formatter(ui.settings.units, ui.settings.decimals)
+    }
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(ui.readingCount) {
+        if (ui.readingCount > 0 && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+            .padding(horizontal = ScreenPadding)
+            .padding(bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ConnectionPill(
+            link = ui.link,
+            onRequestPermission = onRequestPermission,
+            onEnableBluetooth = onEnableBluetooth,
+            onPair = onPair,
+        )
+        ModeSelector(ui.mode, vm::setMode)
+        Readout(ui, formatter, Modifier.weight(1f).fillMaxWidth())
+        if (ui.mode != MeasureMode.DISTANCE) {
+            SlotRow(ui, formatter, vm::selectSlot)
+        }
+        ActionRow(canUndo = ui.canUndo, onUndo = vm::undo, onReset = vm::reset)
+    }
+}
+
+// ----------------------------------------------------------------- mode
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit) {
+    val modes = MeasureMode.entries
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        modes.forEachIndexed { i, mode ->
+            ToggleButton(
+                checked = mode == selected,
+                onCheckedChange = { onSelect(mode) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp)
+                    .semantics { role = Role.RadioButton },
+                shapes = when (i) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+            ) {
+                Text(
+                    text = stringResource(mode.label),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+    }
+}
+
+private val MeasureMode.label
+    get() = when (this) {
+        MeasureMode.DISTANCE -> R.string.mode_distance
+        MeasureMode.AREA -> R.string.mode_area
+        MeasureMode.VOLUME -> R.string.mode_volume
+    }
+
+private fun slotName(index: Int) = when (index) {
+    0 -> R.string.slot_length
+    1 -> R.string.slot_width
+    else -> R.string.slot_height
+}
+
+private fun slotPrompt(mode: MeasureMode, index: Int) = when {
+    mode == MeasureMode.DISTANCE -> R.string.slot_next_distance
+    index == 0 -> R.string.slot_next_length
+    index == 1 -> R.string.slot_next_width
+    else -> R.string.slot_next_height
+}
+
+// ---------------------------------------------------------------- readout
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun Readout(ui: MeasureUiState, formatter: Formatter, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val result = ui.result
+    val done = result != null
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(44.dp),
+        color = if (done) scheme.primaryContainer else scheme.surfaceContainerHigh,
+        contentColor = if (done) scheme.onPrimaryContainer else scheme.onSurface,
+    ) {
+        Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.CenterStart) {
+            val title: String
+            val quantity: Quantity?
+            val extra: String?
+            if (result != null) {
+                title = stringResource(
+                    when (result.mode) {
+                        MeasureMode.DISTANCE -> R.string.result_distance
+                        MeasureMode.AREA -> R.string.result_area
+                        MeasureMode.VOLUME -> R.string.result_volume
+                    },
+                )
+                quantity = formatter.primary(result)
+                extra = formatter.secondary(result)?.let {
+                    val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
+                    "$name · $it"
+                }
+            } else if (ui.lastMm != null) {
+                title = stringResource(slotPrompt(ui.mode, ui.active))
+                quantity = formatter.length(ui.lastMm)
+                extra = stringResource(R.string.last_reading)
+            } else {
+                title = stringResource(R.string.hero_hint_start)
+                quantity = null
+                extra = null
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (quantity == null) {
+                    Box(
+                        Modifier
+                            .size(112.dp)
+                            .clip(MaterialShapes.Cookie9Sided.toShape())
+                            .background(MaterialTheme.colorScheme.secondaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Straighten,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = LocalContentColorAlpha(0.85f),
+                )
+                if (quantity != null) {
+                    AnimatedContent(
+                        targetState = quantity to ui.readingCount,
+                        transitionSpec = {
+                            (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
+                                (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))
+                        },
+                        label = "reading",
+                    ) { (q, _) ->
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = q.number,
+                                style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp, lineHeight = 92.sp),
+                                maxLines = 1,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = q.unit,
+                                style = MaterialTheme.typography.headlineLarge,
+                                modifier = Modifier.padding(bottom = 12.dp),
+                            )
+                        }
+                    }
+                }
+                if (extra != null) {
+                    Text(text = extra, style = MaterialTheme.typography.titleMedium, color = LocalContentColorAlpha(0.75f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocalContentColorAlpha(alpha: Float) =
+    androidx.compose.material3.LocalContentColor.current.copy(alpha = alpha)
+
+// ------------------------------------------------------------------ slots
+
+@Composable
+private fun SlotRow(ui: MeasureUiState, formatter: Formatter, onSelect: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = TileSpacing) {
+        ui.slots.forEachIndexed { i, mm ->
+            val waiting = ui.result == null && i == ui.active
+            Surface(
+                onClick = { onSelect(i) },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                border = if (waiting) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(slotName(i)),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val q = mm?.let(formatter::length)
+                    Text(
+                        text = q?.toString() ?: "—",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (q == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- actions
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit) {
+    val padding = PaddingValues(horizontal = 16.dp)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FilledTonalButton(
+            onClick = onUndo,
+            enabled = canUndo,
+            modifier = Modifier.weight(1f).height(72.dp),
+            contentPadding = padding,
+            shapes = ButtonDefaults.shapes(),
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = null, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.action_undo), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+        }
+        Button(
+            onClick = onReset,
+            modifier = Modifier.weight(1f).height(72.dp),
+            contentPadding = padding,
+            shapes = ButtonDefaults.shapes(),
+        ) {
+            Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.action_reset), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+        }
+    }
+}

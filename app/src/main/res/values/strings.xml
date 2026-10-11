@@ -78,6 +78,10 @@
     <string name="units_metric">Metres</string>
     <string name="units_imperial">Feet</string>
     <string name="settings_precision">Decimal places</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
     <string name="settings_keep_on">Keep the screen on</string>
     <string name="settings_haptics">Vibrate on each reading</string>
     <string name="settings_dynamic">Colours from wallpaper</string>

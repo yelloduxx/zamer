@@ -55,7 +55,7 @@ fun ZamerRoot(container: AppContainer) {
         container.store.pairedDevice.collect { value = PairedState.Loaded(it) }
     }
 
-    ZamerTheme(dynamicColor = settings.dynamicColor) {
+    ZamerTheme(themeMode = settings.theme, dynamicColor = settings.dynamicColor) {
         KeepScreenOn(settings.keepScreenOn)
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             val state = pairedState

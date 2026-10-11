@@ -37,6 +37,7 @@ import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
 import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.data.Settings
+import dev.bezh.zamer.data.ThemeMode
 import dev.bezh.zamer.domain.UnitSystem
 import kotlinx.coroutines.launch
 
@@ -110,10 +111,22 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
             }
         }
 
+        SettingsCard(stringResource(R.string.settings_theme)) {
+            Segmented(
+                options = listOf(
+                    R.string.theme_system to ThemeMode.SYSTEM,
+                    R.string.theme_light to ThemeMode.LIGHT,
+                    R.string.theme_dark to ThemeMode.DARK,
+                ),
+                selected = settings.theme,
+                onSelect = { t -> update { it.copy(theme = t) } },
+            )
+            SwitchRow(R.string.settings_dynamic, settings.dynamicColor) { v -> update { it.copy(dynamicColor = v) } }
+        }
+
         SettingsCard(null) {
             SwitchRow(R.string.settings_keep_on, settings.keepScreenOn) { v -> update { it.copy(keepScreenOn = v) } }
             SwitchRow(R.string.settings_haptics, settings.haptics) { v -> update { it.copy(haptics = v) } }
-            SwitchRow(R.string.settings_dynamic, settings.dynamicColor) { v -> update { it.copy(dynamicColor = v) } }
         }
 
         Text(
@@ -169,12 +182,13 @@ private fun <T> Segmented(options: List<Pair<Int, T>>, selected: T, onSelect: (T
                 checked = selected == value,
                 onCheckedChange = { onSelect(value) },
                 modifier = Modifier.weight(1f).height(52.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp),
                 shapes = when (i) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                     options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                 },
-            ) { Text(stringResource(label)) }
+            ) { Text(stringResource(label), maxLines = 1, softWrap = false) }
         }
     }
 }

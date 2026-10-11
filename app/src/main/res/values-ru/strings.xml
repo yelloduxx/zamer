@@ -78,6 +78,10 @@
     <string name="units_metric">Метры</string>
     <string name="units_imperial">Футы</string>
     <string name="settings_precision">Знаков после запятой</string>
+    <string name="settings_theme">Тема</string>
+    <string name="theme_system">Системная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
     <string name="settings_keep_on">Не гасить экран</string>
     <string name="settings_haptics">Вибрация при каждом замере</string>
     <string name="settings_dynamic">Цвета из обоев</string>

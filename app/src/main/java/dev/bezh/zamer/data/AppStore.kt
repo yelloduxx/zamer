@@ -26,12 +26,15 @@ internal val StoreJson = Json { ignoreUnknownKeys = true }
 /** The rangefinder this phone is paired with. [tokenHex] is the secret from the pairing handshake. */
 data class PairedDevice(val address: String, val name: String, val tokenHex: String)
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 data class Settings(
     val units: UnitSystem = UnitSystem.METRIC,
     val decimals: Int = 3,
     val keepScreenOn: Boolean = true,
     val haptics: Boolean = true,
     val dynamicColor: Boolean = true,
+    val theme: ThemeMode = ThemeMode.SYSTEM,
 )
 
 @Serializable
@@ -74,33 +77,30 @@ class AppStore(private val context: Context) {
 
     // ---- settings ----
 
-    val settings: Flow<Settings> = store.data.map { p ->
-        val d = Settings()
-        Settings(
-            units = p[UNITS]?.let { runCatching { UnitSystem.valueOf(it) }.getOrNull() } ?: d.units,
-            decimals = (p[DECIMALS] ?: d.decimals).coerceIn(1, 3),
-            keepScreenOn = p[KEEP_ON] ?: d.keepScreenOn,
-            haptics = p[HAPTICS] ?: d.haptics,
-            dynamicColor = p[DYNAMIC] ?: d.dynamicColor,
-        )
-    }
+    val settings: Flow<Settings> = store.data.map { it.toSettings() }
 
     suspend fun updateSettings(transform: (Settings) -> Settings) {
         store.edit { p ->
-            val current = Settings(
-                units = p[UNITS]?.let { runCatching { UnitSystem.valueOf(it) }.getOrNull() } ?: UnitSystem.METRIC,
-                decimals = p[DECIMALS] ?: 3,
-                keepScreenOn = p[KEEP_ON] ?: true,
-                haptics = p[HAPTICS] ?: true,
-                dynamicColor = p[DYNAMIC] ?: true,
-            )
-            val next = transform(current)
+            val next = transform(p.toSettings())
             p[UNITS] = next.units.name
             p[DECIMALS] = next.decimals
             p[KEEP_ON] = next.keepScreenOn
             p[HAPTICS] = next.haptics
             p[DYNAMIC] = next.dynamicColor
+            p[THEME] = next.theme.name
         }
+    }
+
+    private fun Preferences.toSettings(): Settings {
+        val d = Settings()
+        return Settings(
+            units = this[UNITS]?.let { runCatching { UnitSystem.valueOf(it) }.getOrNull() } ?: d.units,
+            decimals = (this[DECIMALS] ?: d.decimals).coerceIn(1, 3),
+            keepScreenOn = this[KEEP_ON] ?: d.keepScreenOn,
+            haptics = this[HAPTICS] ?: d.haptics,
+            dynamicColor = this[DYNAMIC] ?: d.dynamicColor,
+            theme = this[THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: d.theme,
+        )
     }
 
     // ---- history ----
@@ -177,6 +177,7 @@ class AppStore(private val context: Context) {
         val KEEP_ON = booleanPreferencesKey("keep_screen_on")
         val HAPTICS = booleanPreferencesKey("haptics")
         val DYNAMIC = booleanPreferencesKey("dynamic_color")
+        val THEME = stringPreferencesKey("theme")
         val HISTORY = stringPreferencesKey("history_json")
         val WORKSPACE = stringPreferencesKey("workspace_json")
         val READINGS = stringPreferencesKey("readings_json")

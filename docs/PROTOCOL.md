@@ -68,7 +68,7 @@ Run login on every connection.
 
 ## Session messages
 
-Each `FEA8` notification is one message:
+Each `FEA8` notification is one encrypted frame:
 
 ```
 [counter u16 LE][AES-CCM ciphertext][4-byte tag]
@@ -76,17 +76,43 @@ Each `FEA8` notification is one message:
 
 Decrypt with key `dev_key` and the 12-byte nonce `dev_iv + 00 00 00 00 + counter as u32 LE`. There is no associated data.
 
-| Plaintext | Meaning |
-|---|---|
-| `00 00 05 80 04 00 <mm u16 BE>` | Measurement in millimetres. The device sends it when you press the measure button. |
-| `00 00 04 80 02 <id> 00` | Status event. The device sends one about every 50 seconds. |
+Frames to the device go to `FEA7` in the same format, encrypted with `app_key` and `app_iv`. Start the counter at 1 on each connection and increase it by one for every frame. The device ignores a counter it has already seen.
 
-The first two plaintext bytes have been `00 00` in every message seen so far. Example: the plaintext `00 00 05 80 04 00 05 b7` is 1463 mm, and the display showed 1.463 m.
+### Message layout
+
+The decrypted payload has a 3-byte header and a method byte:
+
+| Byte | Meaning |
+|---|---|
+| 0 | Bit 4: direction (0 = from the device). Bits 0..3: message ID. |
+| 1 | Bits 4..7: frame count minus one. Bits 0..3: frame index. |
+| 2 | Payload length |
+| 3 | Method. `80` is a device report, `01` sets a value, `FF` answers a command. |
+
+A device report holds attributes `[type][id][value]`. The value is big-endian. Its width depends on the type: 1 byte for types 0 to 2, 2 bytes for 3 and 4, 4 bytes for 5, 6 and 9, 8 bytes for 7, 8 and `0A`.
+
+The app must acknowledge every report with 2 bytes: `header[0] | 0x10`, then `header[1]`. Without the acknowledgement the device repeats the report about every 50 seconds.
+
+### Attributes
+
+| Type | ID | Meaning |
+|---|---|---|
+| `04` | `00` | Distance in millimetres. The unit setting does not change it. |
+| `02` | `01` | Measuring reference. 0 = back edge, 1 = front edge. |
+| `02` | `02` | Display unit. 0 = metres, 1 = feet. |
+
+The device reports both settings after login and after each change.
+
+Examples:
+
+- `00 00 05 80 04 00 05 b7` is a report with a distance of 1463 mm. Acknowledge it with `10 00`.
+- `00 00 04 80 02 01 00` reports the reference as the back edge.
+- `03 00 04 01 02 02 01` sets the display unit to feet, with message ID 3.
 
 ## Unknowns
 
-- The display's Bluetooth icon keeps blinking after a successful login. The official plugin may send an app message on `FEA7` that stops it.
-- Commands for the device settings (measuring reference edge, display units) are not known.
+- The display's Bluetooth icon keeps blinking after a successful login. Acknowledging reports may change this; it is not confirmed.
+- Firmware update and other attributes are not documented here.
 
 ## Credits
 

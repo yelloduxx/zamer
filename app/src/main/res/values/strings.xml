@@ -109,4 +109,13 @@
     <string name="pairing_retry">Try again</string>
     <string name="pairing_need_permission">The app needs Bluetooth access to find your rangefinder.</string>
     <string name="pairing_need_bluetooth">Turn Bluetooth on to continue.</string>
+    <string name="settings_rangefinder">Rangefinder settings</string>
+    <string name="device_reference">Measure from</string>
+    <string name="reference_rear">Back edge</string>
+    <string name="reference_front">Front edge</string>
+    <string name="device_unit">Units on the rangefinder</string>
+    <string name="device_unit_m">m</string>
+    <string name="device_unit_ft">ft</string>
+    <string name="device_settings_hint">These change the rangefinder itself. Zamer always receives millimetres.</string>
+    <string name="device_settings_offline">Available while the rangefinder is connected.</string>
 </resources>

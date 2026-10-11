@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
+import dev.bezh.zamer.ble.DeviceUnit
 import dev.bezh.zamer.ble.LinkState
+import dev.bezh.zamer.ble.ReferenceEdge
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.data.ThemeMode
 import dev.bezh.zamer.domain.UnitSystem
@@ -47,6 +49,7 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
     val settings by container.store.settings.collectAsStateWithLifecycle(Settings())
     val paired by container.store.pairedDevice.collectAsStateWithLifecycle(null)
     val link by container.repository.state.collectAsStateWithLifecycle()
+    val device by container.repository.deviceSettings.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var confirmForget by remember { mutableStateOf(false) }
     fun update(transform: (Settings) -> Settings) = scope.launch { container.store.updateSettings(transform) }
@@ -81,6 +84,30 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
                 FilledTonalButton(onClick = onRepair, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.settings_repair)) }
                 TextButton(onClick = { confirmForget = true }) { Text(stringResource(R.string.settings_forget)) }
             }
+        }
+
+        SettingsCard(stringResource(R.string.settings_rangefinder)) {
+            val connected = link == LinkState.Connected
+            Text(stringResource(R.string.device_reference), style = MaterialTheme.typography.titleSmall)
+            Segmented(
+                options = listOf(R.string.reference_rear to ReferenceEdge.REAR, R.string.reference_front to ReferenceEdge.FRONT),
+                selected = device.reference,
+                enabled = connected && device.reference != null,
+                onSelect = { e -> scope.launch { container.repository.setReference(e) } },
+            )
+            Text(stringResource(R.string.device_unit), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Segmented(
+                options = listOf(R.string.device_unit_m to DeviceUnit.METRES, R.string.device_unit_ft to DeviceUnit.FEET),
+                selected = device.unit,
+                enabled = connected && device.unit != null,
+                onSelect = { u -> scope.launch { container.repository.setDeviceUnit(u) } },
+            )
+            Text(
+                stringResource(if (connected) R.string.device_settings_hint else R.string.device_settings_offline),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
 
         SettingsCard(stringResource(R.string.settings_units)) {
@@ -175,12 +202,13 @@ private fun SwitchRow(label: Int, checked: Boolean, onChange: (Boolean) -> Unit)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun <T> Segmented(options: List<Pair<Int, T>>, selected: T, onSelect: (T) -> Unit) {
+private fun <T> Segmented(options: List<Pair<Int, T>>, selected: T?, onSelect: (T) -> Unit, enabled: Boolean = true) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
         options.forEachIndexed { i, (label, value) ->
             ToggleButton(
                 checked = selected == value,
                 onCheckedChange = { onSelect(value) },
+                enabled = enabled,
                 modifier = Modifier.weight(1f).height(52.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp),
                 shapes = when (i) {

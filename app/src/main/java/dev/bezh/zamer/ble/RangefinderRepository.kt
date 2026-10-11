@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,7 +57,12 @@ class RangefinderRepository(
     private val _readings = MutableSharedFlow<Reading>(extraBufferCapacity = 16)
     val readings: SharedFlow<Reading> = _readings.asSharedFlow()
 
+    private val _device = MutableStateFlow(DeviceSettings())
+    /** The rangefinder's own settings, as it last reported them over the current connection. */
+    val deviceSettings: StateFlow<DeviceSettings> = _device.asStateFlow()
+
     private val pairingLock = Mutex()
+    @Volatile private var session: Session? = null
     private var loop: Job? = null
     private var foreground = false
 
@@ -135,11 +141,14 @@ class RangefinderRepository(
                 _state.value = LinkState.Connecting
                 link.open(found.device)
                 val keys = MiAuth(link).login(token)
+                val current = Session(link, keys).also { session = it }
                 _state.value = LinkState.Connected
                 failures = 0
                 for (frame in link.sessionFrames) {
-                    val message = keys.decrypt(frame)
-                    if (message is SessionMessage.Measurement) _readings.tryEmit(Reading(message.millimetres, System.currentTimeMillis()))
+                    val report = keys.decrypt(frame) as? DeviceFrame.Report ?: continue
+                    // Unacknowledged reports are repeated by the device.
+                    current.send(report.ack)
+                    onReport(report)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -149,9 +158,48 @@ class RangefinderRepository(
             } catch (e: Exception) {
                 failures++
             } finally {
+                session = null
+                _device.value = DeviceSettings()
                 link.close()
             }
             delay(minOf(500L * (failures + 1), 5_000L))
+        }
+    }
+
+    private fun onReport(report: DeviceFrame.Report) {
+        report.valueOf(DeviceAttr.DISTANCE_TYPE, DeviceAttr.DISTANCE_ID)?.let {
+            _readings.tryEmit(Reading(it.toInt(), System.currentTimeMillis()))
+        }
+        report.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.REFERENCE_ID)?.let { v ->
+            ReferenceEdge.entries.getOrNull(v.toInt())?.let { r -> _device.update { it.copy(reference = r) } }
+        }
+        report.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.UNIT_ID)?.let { v ->
+            DeviceUnit.entries.getOrNull(v.toInt())?.let { u -> _device.update { it.copy(unit = u) } }
+        }
+    }
+
+    /** Asks the device to measure from [edge]; false when not connected. The device confirms by reporting it. */
+    suspend fun setReference(edge: ReferenceEdge): Boolean = sendSetting(DeviceAttr.REFERENCE_ID, edge.ordinal)
+
+    /** Switches the device's own display to [unit]; readings still arrive in millimetres. */
+    suspend fun setDeviceUnit(unit: DeviceUnit): Boolean = sendSetting(DeviceAttr.UNIT_ID, unit.ordinal)
+
+    private suspend fun sendSetting(id: Int, value: Int): Boolean {
+        val s = session ?: return false
+        return runCatching { s.send(DeviceAttr.set(s.nextMsgId(), id, value)) }.isSuccess
+    }
+
+    /** One logged-in connection: frames to the device need a counter that only grows. */
+    private class Session(private val link: GattLink, private val keys: SessionKeys) {
+        private val lock = Mutex()
+        private var counter = 0
+        private var msgId = 0
+
+        suspend fun send(plain: ByteArray) = lock.withLock { link.writeData(keys.encrypt(plain, ++counter)) }
+
+        fun nextMsgId(): Int = synchronized(this) {
+            msgId = msgId % 15 + 1
+            msgId
         }
     }
 

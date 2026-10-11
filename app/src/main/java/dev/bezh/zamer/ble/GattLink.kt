@@ -25,6 +25,7 @@ internal object Uuids {
     val UPNP = short(0x0010)
     val AVDTP = short(0x0019)
     val DATA_SERVICE = short(0xFEB7)
+    val DATA_WRITE = short(0xFEA7)
     val DATA_NOTIFY = short(0xFEA8)
     val CCCD = short(0x2902)
 }
@@ -47,6 +48,7 @@ class GattLink(private val context: Context) : AuthLink {
     private var gatt: BluetoothGatt? = null
     private var upnpChar: BluetoothGattCharacteristic? = null
     private var avdtpChar: BluetoothGattCharacteristic? = null
+    private var dataWriteChar: BluetoothGattCharacteristic? = null
 
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
@@ -104,7 +106,9 @@ class GattLink(private val context: Context) : AuthLink {
             val xiaomi = gatt?.getService(Uuids.XIAOMI_SERVICE) ?: throw IOException("Not a supported rangefinder")
             upnpChar = xiaomi.getCharacteristic(Uuids.UPNP)
             avdtpChar = xiaomi.getCharacteristic(Uuids.AVDTP)
-            val data = gatt?.getService(Uuids.DATA_SERVICE)?.getCharacteristic(Uuids.DATA_NOTIFY)
+            val dataService = gatt?.getService(Uuids.DATA_SERVICE)
+            val data = dataService?.getCharacteristic(Uuids.DATA_NOTIFY)
+            dataWriteChar = dataService?.getCharacteristic(Uuids.DATA_WRITE)
             enableNotifications(upnpChar ?: throw IOException("Missing auth characteristic"))
             enableNotifications(avdtpChar ?: throw IOException("Missing data characteristic"))
             enableNotifications(data ?: throw IOException("Missing measurement characteristic"))
@@ -120,6 +124,9 @@ class GattLink(private val context: Context) : AuthLink {
     override suspend fun writeUpnp(data: ByteArray) = write(upnpChar, data)
 
     override suspend fun writeAvdtp(data: ByteArray) = write(avdtpChar, data)
+
+    /** An encrypted session frame for the device (see [SessionKeys.encrypt]). */
+    suspend fun writeData(frame: ByteArray) = write(dataWriteChar, frame)
 
     fun close() {
         gatt?.let {

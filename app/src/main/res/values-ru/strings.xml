@@ -109,4 +109,13 @@
     <string name="pairing_retry">Повторить</string>
     <string name="pairing_need_permission">Для поиска дальномера приложению нужен доступ к Bluetooth.</string>
     <string name="pairing_need_bluetooth">Включите Bluetooth, чтобы продолжить.</string>
+    <string name="settings_rangefinder">Настройки дальномера</string>
+    <string name="device_reference">Отсчёт от</string>
+    <string name="reference_rear">Задней грани</string>
+    <string name="reference_front">Передней грани</string>
+    <string name="device_unit">Единицы на дальномере</string>
+    <string name="device_unit_m">м</string>
+    <string name="device_unit_ft">ft</string>
+    <string name="device_settings_hint">Меняются настройки самого дальномера. Замер всегда получает миллиметры.</string>
+    <string name="device_settings_offline">Доступно, когда дальномер подключён.</string>
 </resources>

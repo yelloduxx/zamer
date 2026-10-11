@@ -18,44 +18,27 @@ open class MiAuthException(message: String) : Exception(message)
 /** The device answered, but doesn't recognise our pairing (it was paired with another app, or reset). */
 class PairingRejectedException(message: String) : MiAuthException(message)
 
-/** Keys negotiated by a login; the device encrypts everything it sends with [devKey]/[devIv]. */
+/** Keys negotiated by a login; each direction has its own key and IV. */
 class SessionKeys(
     val devKey: ByteArray,
     val appKey: ByteArray,
     val devIv: ByteArray,
     val appIv: ByteArray,
 ) {
-    /** Session frame: `[counter u16 LE][AES-CCM ciphertext + 4-byte tag]`, nonce = devIv + 0000 + counter(u32 LE). */
-    fun decrypt(frame: ByteArray): SessionMessage? {
+    /** Session frame: `[counter u16 LE][AES-CCM ciphertext + 4-byte tag]`, nonce = iv + 0000 + counter(u32 LE). */
+    fun decrypt(frame: ByteArray): DeviceFrame? {
         if (frame.size < 7) return null
         val counter = (frame[0].toInt() and 0xFF) or ((frame[1].toInt() and 0xFF) shl 8)
-        val nonce = devIv + ByteArray(4) + byteArrayOf(counter.toByte(), (counter shr 8).toByte(), 0, 0)
-        val plain = MiCrypto.ccmDecrypt(devKey, nonce, frame.copyOfRange(2, frame.size)) ?: return null
-        return SessionMessage.parse(plain)
+        val plain = MiCrypto.ccmDecrypt(devKey, nonce(devIv, counter), frame.copyOfRange(2, frame.size)) ?: return null
+        return DeviceFrame.parse(plain)
     }
-}
 
-/** What the rangefinder says once logged in. */
-sealed interface SessionMessage {
-    /** A distance in millimetres, sent when the user presses the measure button. */
-    data class Measurement(val millimetres: Int) : SessionMessage
+    /** The same framing toward the device. [counter] must grow with every frame of the session. */
+    fun encrypt(plain: ByteArray, counter: Int): ByteArray =
+        byteArrayOf(counter.toByte(), (counter shr 8).toByte()) + MiCrypto.ccmEncrypt(appKey, nonce(appIv, counter), plain)
 
-    /** Periodic status frames (about every 50 s) and similar; carries the raw event id. */
-    data class Event(val id: Int) : SessionMessage
-
-    data class Unknown(val raw: ByteArray) : SessionMessage
-
-    companion object {
-        fun parse(p: ByteArray): SessionMessage {
-            fun u(i: Int) = p[i].toInt() and 0xFF
-            return when {
-                p.size == 8 && u(2) == 0x05 && u(3) == 0x80 && u(4) == 0x04 && u(5) == 0x00 ->
-                    Measurement((u(6) shl 8) or u(7))
-                p.size == 7 && u(2) == 0x04 && u(3) == 0x80 && u(4) == 0x02 -> Event(u(5))
-                else -> Unknown(p)
-            }
-        }
-    }
+    private fun nonce(iv: ByteArray, counter: Int) =
+        iv + ByteArray(4) + byteArrayOf(counter.toByte(), (counter shr 8).toByte(), (counter shr 16).toByte(), (counter shr 24).toByte())
 }
 
 /**

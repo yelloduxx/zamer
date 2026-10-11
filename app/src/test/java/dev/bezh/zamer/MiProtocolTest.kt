@@ -4,7 +4,9 @@ import dev.bezh.zamer.ble.AuthLink
 import dev.bezh.zamer.ble.MiAuth
 import dev.bezh.zamer.ble.MiCrypto
 import dev.bezh.zamer.ble.SessionKeys
-import dev.bezh.zamer.ble.SessionMessage
+import dev.bezh.zamer.ble.Attribute
+import dev.bezh.zamer.ble.DeviceAttr
+import dev.bezh.zamer.ble.DeviceFrame
 import dev.bezh.zamer.ble.hexToBytes
 import dev.bezh.zamer.ble.toHex
 import kotlinx.coroutines.channels.Channel
@@ -13,6 +15,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.security.SecureRandom
 
@@ -58,14 +61,37 @@ class MiProtocolTest {
         // The user read 1.463 m and 0.434 m on the display for these two frames.
         val m1 = session.decrypt("0300e1a01fdf6c1986fd7023fb31".hexToBytes())
         val m2 = session.decrypt("040058d3299a37dda3eaa90a8b07".hexToBytes())
-        assertEquals(SessionMessage.Measurement(1463), m1)
-        assertEquals(SessionMessage.Measurement(434), m2)
+        assertEquals(listOf(Attribute(4, 0, 1463)), (m1 as DeviceFrame.Report).attributes)
+        assertEquals(listOf(Attribute(4, 0, 434)), (m2 as DeviceFrame.Report).attributes)
+    }
+
+    /** The two frames after login report the device's settings: reference edge (id 1) and unit (id 2), both 0. */
+    @Test
+    fun decryptsSettingsReports() {
+        val reference = session.decrypt("01006d0926c408cb2248da3cd2".hexToBytes()) as DeviceFrame.Report
+        val unit = session.decrypt("0200426e003d795463e97bcc39".hexToBytes()) as DeviceFrame.Report
+        assertEquals(0L, reference.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.REFERENCE_ID))
+        assertEquals(0L, unit.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.UNIT_ID))
+        assertEquals("1000", reference.ack.toHex())
     }
 
     @Test
-    fun decryptsHeartbeatEvents() {
-        assertEquals(SessionMessage.Event(1), session.decrypt("01006d0926c408cb2248da3cd2".hexToBytes()))
-        assertEquals(SessionMessage.Event(2), session.decrypt("0200426e003d795463e97bcc39".hexToBytes()))
+    fun parsesReportsAndSkipsOtherMethods() {
+        val report = DeviceFrame.parse("0300068002020104000a5b".hexToBytes()) as DeviceFrame.Report
+        assertEquals(listOf(Attribute(2, 2, 1), Attribute(4, 0, 2651)), report.attributes)
+        assertEquals("1300", report.ack.toHex())
+        assertTrue(DeviceFrame.parse("030001ff00".hexToBytes()) is DeviceFrame.Other)
+    }
+
+    @Test
+    fun encryptsCommandsWithTheAppKey() {
+        val command = DeviceAttr.set(msgId = 3, id = DeviceAttr.UNIT_ID, value = 1)
+        assertEquals("03000401020201", command.toHex())
+        val frame = session.encrypt(command, counter = 5)
+        assertEquals(13, frame.size)
+        assertEquals("0500", frame.copyOfRange(0, 2).toHex())
+        val nonce = session.appIv + ByteArray(4) + byteArrayOf(5, 0, 0, 0)
+        assertArrayEquals(command, MiCrypto.ccmDecrypt(session.appKey, nonce, frame.copyOfRange(2, frame.size)))
     }
 
     @Test
@@ -102,7 +128,7 @@ class MiProtocolTest {
         assertArrayEquals(session.devKey, keys.devKey)
         assertArrayEquals(session.appIv, keys.appIv)
         link.assertFinished()
-        assertEquals(SessionMessage.Measurement(1463), keys.decrypt("0300e1a01fdf6c1986fd7023fb31".hexToBytes()))
+        assertEquals(listOf(Attribute(4, 0, 1463)), (keys.decrypt("0300e1a01fdf6c1986fd7023fb31".hexToBytes()) as DeviceFrame.Report).attributes)
     }
 
     @Test

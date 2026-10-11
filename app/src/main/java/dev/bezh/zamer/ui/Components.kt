@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.ViewInAr
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -30,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +53,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -58,6 +64,7 @@ import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
 import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.ble.RangefinderRepository
+import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.Side
 import kotlinx.coroutines.delay
@@ -101,6 +108,8 @@ fun ConnectionPill(
     onEnableBluetooth: () -> Unit,
     onPair: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Shows only the icon, and the action button when there is one; the label becomes its description. */
+    compact: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val busy = link == LinkState.Searching || link == LinkState.Connecting
@@ -124,9 +133,20 @@ fun ConnectionPill(
         LinkState.NeedsRepair, LinkState.NotPaired -> R.string.action_pair to onPair
         else -> null
     }
-    Surface(modifier = modifier, shape = CircleShape, color = container, contentColor = content) {
+    val labelText = stringResource(label)
+    Surface(
+        modifier = modifier.semantics { if (compact) contentDescription = labelText },
+        shape = CircleShape,
+        color = container,
+        contentColor = content,
+    ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, end = if (action != null) 4.dp else 18.dp, top = 6.dp, bottom = 6.dp),
+            modifier = Modifier.padding(
+                start = if (compact) 8.dp else 14.dp,
+                end = if (action != null) 4.dp else if (compact) 8.dp else 18.dp,
+                top = 6.dp,
+                bottom = 6.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (busy) {
@@ -143,12 +163,33 @@ fun ConnectionPill(
                     modifier = Modifier.size(22.dp),
                 )
             }
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
+            if (!compact) {
+                Spacer(Modifier.width(8.dp))
+                Text(labelText, style = MaterialTheme.typography.labelLarge)
+            }
             if (action != null) {
                 Spacer(Modifier.width(4.dp))
                 TextButton(onClick = action.second) { Text(stringResource(action.first)) }
             }
+        }
+    }
+}
+
+/** Earlier readings, so a value measured once can be reused without measuring again. */
+@Composable
+fun RecentReadings(values: List<Int>, formatter: Formatter, modifier: Modifier = Modifier, onPick: (Int) -> Unit) {
+    Row(
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Rounded.History,
+            contentDescription = stringResource(R.string.recent_readings),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        values.forEach { mm ->
+            SuggestionChip(onClick = { onPick(mm) }, label = { Text(formatter.length(mm).toString()) })
         }
     }
 }

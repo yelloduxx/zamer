@@ -1,0 +1,436 @@
+package dev.bezh.zamer.ui
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.CropSquare
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.HorizontalRule
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.bezh.zamer.R
+import dev.bezh.zamer.domain.Formatter
+import dev.bezh.zamer.domain.Pt
+import dev.bezh.zamer.domain.Rect
+import dev.bezh.zamer.domain.Segment
+import dev.bezh.zamer.domain.SideRef
+import dev.bezh.zamer.domain.Sketch
+import dev.bezh.zamer.domain.SketchShape
+import kotlin.math.atan2
+import kotlin.math.ceil
+import kotlin.math.floor
+
+private val GridSpacing = 24.dp
+private const val MIN_SCALE = 0.5f
+private const val MAX_SCALE = 3f
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun SketchScreen(
+    vm: SketchViewModel,
+    onBack: () -> Unit,
+    onPair: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onEnableBluetooth: () -> Unit,
+) {
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    val formatter = remember(ui.settings.units, ui.settings.decimals) {
+        Formatter(ui.settings.units, ui.settings.decimals)
+    }
+    val haptics = LocalHapticFeedback.current
+    // The view model outlives this screen; a reading it took before the screen reopened must not buzz.
+    val countOnEntry = remember { ui.assignedCount }
+    LaunchedEffect(ui.assignedCount) {
+        if (ui.assignedCount > countOnEntry && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+    }
+    var tool by rememberSaveable { mutableStateOf(SketchTool.LINE) }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
+    val sketch = ui.sketch ?: Sketch()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val inset = Modifier.padding(horizontal = ScreenPadding)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = ScreenPadding, top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
+            }
+            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                Text(stringResource(R.string.sketch_title), style = MaterialTheme.typography.titleLarge)
+                sketch.totalArea?.let {
+                    Text(
+                        stringResource(R.string.sketch_total_area, formatter.area(it).toString()),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            ConnectionPill(
+                link = ui.link,
+                onRequestPermission = onRequestPermission,
+                onEnableBluetooth = onEnableBluetooth,
+                onPair = onPair,
+                compact = true,
+            )
+        }
+        SketchCanvas(
+            sketch = sketch,
+            tool = tool,
+            formatter = formatter,
+            onDraw = { a, b -> vm.draw(tool, a, b) },
+            onSelect = vm::select,
+            modifier = inset.weight(1f).fillMaxWidth(),
+        )
+        Text(
+            stringResource(
+                when {
+                    sketch.target != null -> R.string.sketch_prompt_measure
+                    sketch.shapes.isEmpty() -> R.string.sketch_prompt_draw
+                    else -> R.string.sketch_prompt_select
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = inset,
+        )
+        if (ui.recent.isNotEmpty()) {
+            RecentReadings(ui.recent, formatter, inset) { vm.put(it) }
+        }
+        ToolSelector(tool, { tool = it }, inset)
+        Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val action = Modifier.weight(1f).height(72.dp)
+            FilledTonalButton(
+                onClick = vm::undo,
+                enabled = sketch.shapes.isNotEmpty(),
+                modifier = action,
+                contentPadding = ActionPadding,
+                shapes = ButtonDefaults.shapes(),
+            ) { ActionLabel(Icons.AutoMirrored.Rounded.Undo, R.string.action_undo) }
+            FilledTonalButton(
+                onClick = vm::deleteSelected,
+                enabled = sketch.target != null,
+                modifier = action,
+                contentPadding = ActionPadding,
+                shapes = ButtonDefaults.shapes(),
+            ) { ActionLabel(Icons.Rounded.Delete, R.string.action_delete) }
+            Button(
+                onClick = { confirmClear = true },
+                enabled = sketch.shapes.isNotEmpty(),
+                modifier = action,
+                contentPadding = ActionPadding,
+                shapes = ButtonDefaults.shapes(),
+            ) { ActionLabel(Icons.Rounded.DeleteSweep, R.string.action_clear) }
+        }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            text = { Text(stringResource(R.string.sketch_clear_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    vm.clear()
+                }) { Text(stringResource(R.string.action_clear)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+private val ActionPadding = PaddingValues(horizontal = 8.dp)
+
+/** Icon over label, so three actions fit side by side on a narrow phone. */
+@Composable
+private fun ActionLabel(icon: ImageVector, label: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+        Text(
+            stringResource(label),
+            maxLines = 1,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        SketchTool.entries.forEachIndexed { i, t ->
+            ToggleButton(
+                checked = t == selected,
+                onCheckedChange = { onSelect(t) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .semantics { role = Role.RadioButton },
+                shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+            ) {
+                Icon(
+                    if (t == SketchTool.LINE) Icons.Rounded.HorizontalRule else Icons.Rounded.CropSquare,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(if (t == SketchTool.LINE) R.string.sketch_tool_line else R.string.sketch_tool_rect),
+                    maxLines = 1,
+                    softWrap = false,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------- canvas
+
+/**
+ * The dot grid with the sketch on it. One finger draws with [tool] or, without moving, taps a side to select it;
+ * two fingers pan and zoom.
+ */
+@Composable
+private fun SketchCanvas(
+    sketch: Sketch,
+    tool: SketchTool,
+    formatter: Formatter,
+    onDraw: (Pt, Pt) -> Unit,
+    onSelect: (SideRef) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val spacing = with(density) { GridSpacing.toPx() }
+    val snapReach = with(density) { 20.dp.toPx() }
+    val tapReach = with(density) { 24.dp.toPx() }
+    var scale by rememberSaveable { mutableFloatStateOf(1f) }
+    // Where grid point (0, 0) sits on the canvas, in pixels.
+    var originX by rememberSaveable { mutableFloatStateOf(spacing) }
+    var originY by rememberSaveable { mutableFloatStateOf(spacing) }
+    var preview by remember { mutableStateOf<Pair<Pt, Pt>?>(null) }
+    val current by rememberUpdatedState(sketch)
+    val draw by rememberUpdatedState(onDraw)
+    val select by rememberUpdatedState(onSelect)
+
+    val scheme = MaterialTheme.colorScheme
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelLarge
+
+    Canvas(
+        modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(scheme.surfaceContainerLow)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    fun grid(p: Offset): Offset {
+                        val unit = spacing * scale
+                        return Offset((p.x - originX) / unit, (p.y - originY) / unit)
+                    }
+                    fun snap(p: Offset): Pt = grid(p).let { current.snap(it.x, it.y, snapReach / (spacing * scale)) }
+
+                    var start: Pt? = null
+                    var transforming = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.count { it.pressed }
+                        if (pressed == 0) break
+                        // Once a second finger lands, the rest of the gesture only moves the view.
+                        if (transforming || pressed > 1) {
+                            transforming = true
+                            preview = null
+                            // A finger landing or lifting shifts the centroid; skip that frame instead of jumping.
+                            if (event.changes.all { it.pressed == it.previousPressed }) {
+                                val centroid = event.calculateCentroid()
+                                val pan = event.calculatePan()
+                                val next = (scale * event.calculateZoom()).coerceIn(MIN_SCALE, MAX_SCALE)
+                                val k = next / scale
+                                originX = centroid.x - (centroid.x - pan.x - originX) * k
+                                originY = centroid.y - (centroid.y - pan.y - originY) * k
+                                scale = next
+                            }
+                            event.changes.forEach { it.consume() }
+                            continue
+                        }
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                        if (start == null && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                            start = snap(down.position)
+                        }
+                        start?.let {
+                            preview = it to snap(change.position)
+                            change.consume()
+                        }
+                    }
+                    val drawn = preview
+                    preview = null
+                    when {
+                        transforming -> Unit
+                        drawn != null -> draw(drawn.first, drawn.second)
+                        start == null -> grid(down.position).let { g ->
+                            current.sideAt(g.x, g.y, tapReach / (spacing * scale))?.let(select)
+                        }
+                    }
+                }
+            },
+    ) {
+        val unit = spacing * scale
+        fun at(p: Pt) = Offset(originX + p.x * unit, originY + p.y * unit)
+
+        val columns = ceil(-originX / unit).toInt()..floor((size.width - originX) / unit).toInt()
+        val rows = ceil(-originY / unit).toInt()..floor((size.height - originY) / unit).toInt()
+        val dots = buildList {
+            for (x in columns) for (y in rows) add(Offset(originX + x * unit, originY + y * unit))
+        }
+        drawPoints(dots, PointMode.Points, scheme.outlineVariant, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+
+        val target = current.target
+        val dash = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))
+        // The selected side goes last so it stays on top where shapes share an edge.
+        current.shapes
+            .flatMap { s -> s.edges.map { e -> Triple(e, SideRef(s.id, e.side) == target, s.sides[e.side] != null) } }
+            .sortedBy { it.second }
+            .forEach { (e, selected, measured) ->
+                drawLine(
+                    color = if (selected) scheme.primary else scheme.onSurface,
+                    start = at(e.a),
+                    end = at(e.b),
+                    strokeWidth = (if (selected) 5.dp else 3.dp).toPx(),
+                    cap = StrokeCap.Round,
+                    pathEffect = if (measured) null else dash,
+                )
+            }
+        preview?.let { (a, b) ->
+            val shape: SketchShape = if (tool == SketchTool.LINE) Segment(0, a, b) else Rect(0, a, b)
+            shape.edges.forEach {
+                drawLine(scheme.primary.copy(alpha = 0.6f), at(it.a), at(it.b), 3.dp.toPx(), StrokeCap.Round)
+            }
+        }
+
+        fun label(text: String, center: Offset, degrees: Float, background: Color, color: Color) {
+            pill(measurer.measure(text, labelStyle.copy(color = color)), center, degrees, background)
+        }
+        current.shapes.forEach { s ->
+            s.sides.forEachIndexed { side, mm ->
+                val e = s.edges.first { it.side == side }
+                val a = at(e.a)
+                val b = at(e.b)
+                val selected = SideRef(s.id, side) == target
+                label(
+                    text = mm?.let { formatter.length(it).toString() } ?: "?",
+                    center = (a + b) / 2f,
+                    degrees = upright(Math.toDegrees(atan2(b.y - a.y, b.x - a.x).toDouble()).toFloat()),
+                    background = if (selected) scheme.primary else scheme.surfaceContainerHigh,
+                    color = if (selected) scheme.onPrimary else scheme.onSurface,
+                )
+            }
+            if (s is Rect) {
+                s.area?.let { area ->
+                    label(
+                        formatter.area(area).toString(),
+                        (at(s.a) + at(s.b)) / 2f,
+                        0f,
+                        scheme.secondaryContainer,
+                        scheme.onSecondaryContainer,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Turns a line's angle so text along it never reads upside down; vertical text reads bottom to top. */
+private fun upright(degrees: Float) = when {
+    degrees >= 90f -> degrees - 180f
+    degrees < -90f -> degrees + 180f
+    else -> degrees
+}
+
+private fun DrawScope.pill(text: TextLayoutResult, center: Offset, degrees: Float, background: Color) {
+    val w = text.size.width + 12.dp.toPx()
+    val h = text.size.height + 4.dp.toPx()
+    rotate(degrees, pivot = center) {
+        drawRoundRect(background, Offset(center.x - w / 2, center.y - h / 2), Size(w, h), CornerRadius(h / 2))
+        drawText(text, topLeft = Offset(center.x - text.size.width / 2f, center.y - text.size.height / 2f))
+    }
+}

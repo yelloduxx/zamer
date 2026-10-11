@@ -38,6 +38,16 @@
     <string name="name_hint">Например, пол на кухне</string>
     <string name="recent_readings">Недавние замеры</string>
 
+    <string name="sketch_title">Эскиз</string>
+    <string name="sketch_total_area">Площадь: %1$s</string>
+    <string name="sketch_prompt_measure">Измерьте выделенную сторону дальномером</string>
+    <string name="sketch_prompt_draw">Нарисуйте линию или прямоугольник</string>
+    <string name="sketch_prompt_select">Коснитесь стороны, чтобы перемерить</string>
+    <string name="sketch_tool_line">Линия</string>
+    <string name="sketch_tool_rect">Прямоугольник</string>
+    <string name="sketch_clear_confirm">Стереть весь эскиз?</string>
+    <string name="action_back">Назад</string>
+
     <string name="action_undo">Отменить</string>
     <string name="action_reset">Заново</string>
     <string name="action_copy">Копировать</string>

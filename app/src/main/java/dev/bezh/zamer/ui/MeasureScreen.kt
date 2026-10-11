@@ -9,7 +9,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,14 +25,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material3.Button
@@ -44,7 +41,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
@@ -422,27 +418,6 @@ private fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSel
                     )
                 }
             }
-        }
-    }
-}
-
-// ----------------------------------------------------------------- recent
-
-/** Earlier readings, so a value measured once can be reused without measuring again. */
-@Composable
-private fun RecentReadings(values: List<Int>, formatter: Formatter, modifier: Modifier = Modifier, onPick: (Int) -> Unit) {
-    Row(
-        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Rounded.History,
-            contentDescription = stringResource(R.string.recent_readings),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        values.forEach { mm ->
-            SuggestionChip(onClick = { onPick(mm) }, label = { Text(formatter.length(mm).toString()) })
         }
     }
 }

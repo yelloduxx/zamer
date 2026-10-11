@@ -38,6 +38,16 @@
     <string name="name_hint">e.g. Kitchen floor</string>
     <string name="recent_readings">Recent readings</string>
 
+    <string name="sketch_title">Sketch</string>
+    <string name="sketch_total_area">Area: %1$s</string>
+    <string name="sketch_prompt_measure">Measure the highlighted side with the rangefinder</string>
+    <string name="sketch_prompt_draw">Draw a line or a rectangle</string>
+    <string name="sketch_prompt_select">Tap a side to measure it again</string>
+    <string name="sketch_tool_line">Line</string>
+    <string name="sketch_tool_rect">Rectangle</string>
+    <string name="sketch_clear_confirm">Erase the whole sketch?</string>
+    <string name="action_back">Back</string>
+
     <string name="action_undo">Undo</string>
     <string name="action_reset">Start over</string>
     <string name="action_copy">Copy</string>

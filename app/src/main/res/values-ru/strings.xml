@@ -45,6 +45,7 @@
     <string name="sketch_prompt_select">Коснитесь стороны, чтобы перемерить</string>
     <string name="sketch_tool_line">Линия</string>
     <string name="sketch_tool_rect">Прямоугольник</string>
+    <string name="sketch_fit">Показать всё</string>
     <string name="sketch_clear_confirm">Стереть весь эскиз?</string>
     <string name="action_back">Назад</string>
 

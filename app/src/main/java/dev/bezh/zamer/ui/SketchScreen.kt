@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.FitScreen
 import androidx.compose.material.icons.rounded.HorizontalRule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -44,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -64,6 +66,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -73,6 +76,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -97,8 +101,12 @@ private val MinDotGap = 12.dp
 
 /** How many dot spacings apart the shown dots may be, from 0.5 m up to 10 m. */
 private val DotSteps = listOf(1, 2, 10, 20)
-private const val MIN_SCALE = 0.5f
-private const val MAX_SCALE = 3f
+private const val MIN_SCALE = 0.1f
+private const val MAX_SCALE = 4f
+
+/** Fitting a small sketch stops zooming in here, so a single short line doesn't fill the screen. */
+private const val FIT_MAX_SCALE = 2f
+private val FitPadding = 40.dp
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -121,6 +129,7 @@ fun SketchScreen(
     }
     var tool by rememberSaveable { mutableStateOf(SketchTool.LINE) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
+    var fits by remember { mutableIntStateOf(0) }
     val sketch = ui.sketch ?: Sketch()
 
     Column(
@@ -148,6 +157,9 @@ fun SketchScreen(
                     )
                 }
             }
+            IconButton(onClick = { fits++ }, enabled = sketch.shapes.isNotEmpty()) {
+                Icon(Icons.Rounded.FitScreen, contentDescription = stringResource(R.string.sketch_fit))
+            }
             ConnectionPill(
                 link = ui.link,
                 onRequestPermission = onRequestPermission,
@@ -160,6 +172,7 @@ fun SketchScreen(
             sketch = sketch,
             tool = tool,
             formatter = formatter,
+            fits = fits,
             onDraw = { a, b -> vm.draw(tool, a, b) },
             onSelect = vm::select,
             modifier = inset.weight(1f).fillMaxWidth(),
@@ -277,13 +290,14 @@ private fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, m
 
 /**
  * The dot grid with the sketch on it. One finger draws with [tool] or, without moving, taps a side to select it;
- * two fingers pan and zoom.
+ * two fingers pan and zoom. Each increment of [fits] frames the whole sketch.
  */
 @Composable
 private fun SketchCanvas(
     sketch: Sketch,
     tool: SketchTool,
     formatter: Formatter,
+    fits: Int,
     onDraw: (Pt, Pt) -> Unit,
     onSelect: (SideRef) -> Unit,
     modifier: Modifier = Modifier,
@@ -298,6 +312,42 @@ private fun SketchCanvas(
     var originX by rememberSaveable { mutableFloatStateOf(spacing) }
     var originY by rememberSaveable { mutableFloatStateOf(spacing) }
     var preview by remember { mutableStateOf<Pair<Pt, Pt>?>(null) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    val padding = with(density) { FitPadding.toPx() }
+
+    fun onScreen(p: Pt): Boolean {
+        val pxPerMm = spacing * scale / GRID_MM
+        val x = originX + p.x * pxPerMm
+        val y = originY + p.y * pxPerMm
+        return x in 0f..canvasSize.width.toFloat() && y in 0f..canvasSize.height.toFloat()
+    }
+
+    fun fit() {
+        val points = sketch.shapes.flatMap { it.points }
+        if (points.isEmpty() || canvasSize == IntSize.Zero) return
+        val left = points.minOf { it.x }
+        val right = points.maxOf { it.x }
+        val top = points.minOf { it.y }
+        val bottom = points.maxOf { it.y }
+        // A straight line has no extent across; the other direction alone decides the zoom.
+        val across = (canvasSize.width - 2 * padding) * GRID_MM / (spacing * (right - left).coerceAtLeast(1))
+        val down = (canvasSize.height - 2 * padding) * GRID_MM / (spacing * (bottom - top).coerceAtLeast(1))
+        scale = minOf(across, down).coerceIn(MIN_SCALE, FIT_MAX_SCALE)
+        val pxPerMm = spacing * scale / GRID_MM
+        originX = canvasSize.width / 2f - (left + right) / 2f * pxPerMm
+        originY = canvasSize.height / 2f - (top + bottom) / 2f * pxPerMm
+    }
+
+    LaunchedEffect(fits) { if (fits > 0) fit() }
+    // Only a reading redraws shapes in place, and a long one can push the sketch past the edge of the view.
+    var shown by remember { mutableStateOf(sketch.shapes) }
+    LaunchedEffect(sketch.shapes) {
+        val before = shown
+        shown = sketch.shapes
+        val measured = before.map { it.id } == sketch.shapes.map { it.id } && before.map { it.sides } != sketch.shapes.map { it.sides }
+        val old = before.flatMapTo(HashSet()) { it.points }
+        if (measured && sketch.shapes.any { s -> s.points.any { it !in old && !onScreen(it) } }) fit()
+    }
     val current by rememberUpdatedState(sketch)
     val draw by rememberUpdatedState(onDraw)
     val select by rememberUpdatedState(onSelect)
@@ -310,6 +360,7 @@ private fun SketchCanvas(
         modifier
             .clip(RoundedCornerShape(28.dp))
             .background(scheme.surfaceContainerLow)
+            .onSizeChanged { canvasSize = it }
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)

@@ -45,6 +45,7 @@
     <string name="sketch_prompt_select">Tap a side to measure it again</string>
     <string name="sketch_tool_line">Line</string>
     <string name="sketch_tool_rect">Rectangle</string>
+    <string name="sketch_fit">Show everything</string>
     <string name="sketch_clear_confirm">Erase the whole sketch?</string>
     <string name="action_back">Back</string>
 

@@ -10,12 +10,17 @@ import dev.bezh.zamer.data.AppStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class AppContainer(app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val store = AppStore(app)
     val scanner = RangefinderScanner(app)
     val repository = RangefinderRepository(app, store, scanner, scope)
+
+    init {
+        scope.launch { repository.readings.collect { store.addReading(it) } }
+    }
 }
 
 class ZamerApp : Application() {

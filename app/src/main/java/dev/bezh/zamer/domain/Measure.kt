@@ -23,6 +23,10 @@ enum class MeasureMode(vararg sides: Side) {
 
 enum class UnitSystem { METRIC, IMPERIAL }
 
+/** A distance the rangefinder sent, and when it arrived. */
+@Serializable
+data class Reading(val mm: Int, val at: Long)
+
 /** Everything derivable from one completed set of readings (all in millimetres). */
 @ConsistentCopyVisibility
 data class MeasureResult private constructor(

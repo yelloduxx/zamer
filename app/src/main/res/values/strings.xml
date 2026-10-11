@@ -33,6 +33,7 @@
     <string name="extra_perimeter">Perimeter</string>
     <string name="extra_floor">Floor area</string>
     <string name="last_reading">Last reading</string>
+    <string name="recent_readings">Recent readings</string>
 
     <string name="action_undo">Undo</string>
     <string name="action_reset">Start over</string>

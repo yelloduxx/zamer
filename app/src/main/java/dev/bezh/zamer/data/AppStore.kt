@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.Reading
 import dev.bezh.zamer.domain.UnitSystem
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.flow.Flow
@@ -130,11 +131,34 @@ class AppStore(private val context: Context) {
     private fun decodeWorkspace(raw: String?): Workspace =
         raw?.let { runCatching { json.decodeFromString<Workspace>(it) }.getOrNull() } ?: Workspace()
 
-    private fun decodeHistory(raw: String?): List<HistoryEntry> =
-        raw?.let { runCatching { json.decodeFromString<List<HistoryEntry>>(it) }.getOrNull() } ?: emptyList()
+    private fun decodeHistory(raw: String?): List<HistoryEntry> = decodeList(raw)
+
+    // ---- readings log, newest first ----
+
+    val readings: Flow<List<Reading>> = store.data.map { decodeList<Reading>(it[READINGS]) }
+
+    suspend fun addReading(reading: Reading) {
+        store.edit { p ->
+            val list = decodeList<Reading>(p[READINGS])
+            // An identical reading can't be told apart from the one already logged.
+            if (reading !in list) p[READINGS] = json.encodeToString((listOf(reading) + list).take(MAX_READINGS))
+        }
+    }
+
+    suspend fun deleteReading(reading: Reading) {
+        store.edit { p -> p[READINGS] = json.encodeToString(decodeList<Reading>(p[READINGS]) - reading) }
+    }
+
+    suspend fun clearReadings() {
+        store.edit { it.remove(READINGS) }
+    }
+
+    private inline fun <reified T> decodeList(raw: String?): List<T> =
+        raw?.let { runCatching { json.decodeFromString<List<T>>(it) }.getOrNull() } ?: emptyList()
 
     private companion object {
         const val MAX_HISTORY = 500
+        const val MAX_READINGS = 200
         val ADDRESS = stringPreferencesKey("device_address")
         val NAME = stringPreferencesKey("device_name")
         val TOKEN = stringPreferencesKey("device_token")
@@ -145,5 +169,6 @@ class AppStore(private val context: Context) {
         val DYNAMIC = booleanPreferencesKey("dynamic_color")
         val HISTORY = stringPreferencesKey("history_json")
         val WORKSPACE = stringPreferencesKey("workspace_json")
+        val READINGS = stringPreferencesKey("readings_json")
     }
 }

@@ -40,6 +40,8 @@ data class MeasureUiState(
     val readingCount: Int = 0,
     val link: LinkState = LinkState.Searching,
     val settings: Settings = Settings(),
+    /** Recent distinct values from the readings log, newest first. */
+    val recent: List<Int> = emptyList(),
 )
 
 private data class Session(val lastMm: Int? = null, val readingCount: Int = 0)
@@ -48,12 +50,12 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     private val session = MutableStateFlow(Session())
 
     val ui: StateFlow<MeasureUiState> =
-        combine(c.store.workspace, session, c.repository.state, c.store.settings) { ws, s, link, settings ->
-            MeasureUiState(ws, s.lastMm, s.readingCount, link, settings)
+        combine(c.store.workspace, session, c.repository.state, c.store.settings, c.store.readings) { ws, s, link, settings, log ->
+            MeasureUiState(ws, s.lastMm, s.readingCount, link, settings, log.map { it.mm }.distinct().take(RECENT_CHIPS))
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasureUiState())
 
     init {
-        viewModelScope.launch { c.repository.readings.collect { put(it.millimetres, fromDevice = true) } }
+        viewModelScope.launch { c.repository.readings.collect { put(it.mm, fromDevice = true) } }
     }
 
     /** Treats [mm] as the next reading; [fromDevice] readings also buzz. */
@@ -88,6 +90,10 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
 
     private fun edit(transform: (Workspace) -> Workspace) {
         viewModelScope.launch { c.store.updateWorkspace(transform) }
+    }
+
+    private companion object {
+        const val RECENT_CHIPS = 10
     }
 }
 

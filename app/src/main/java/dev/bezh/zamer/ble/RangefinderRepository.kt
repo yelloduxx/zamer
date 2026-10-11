@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import dev.bezh.zamer.data.AppStore
 import dev.bezh.zamer.data.PairedDevice
+import dev.bezh.zamer.domain.Reading
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,8 +34,6 @@ sealed interface LinkState {
     /** The device no longer accepts our pairing (paired elsewhere or reset); pair again. */
     data object NeedsRepair : LinkState
 }
-
-data class Reading(val millimetres: Int, val at: Long = System.currentTimeMillis())
 
 sealed interface PairOutcome {
     data object Success : PairOutcome
@@ -140,7 +139,7 @@ class RangefinderRepository(
                 failures = 0
                 for (frame in link.sessionFrames) {
                     val message = keys.decrypt(frame)
-                    if (message is SessionMessage.Measurement) _readings.tryEmit(Reading(message.millimetres))
+                    if (message is SessionMessage.Measurement) _readings.tryEmit(Reading(message.millimetres, System.currentTimeMillis()))
                 }
             } catch (e: CancellationException) {
                 throw e

@@ -33,6 +33,7 @@
     <string name="extra_perimeter">Периметр</string>
     <string name="extra_floor">Площадь пола</string>
     <string name="last_reading">Последний замер</string>
+    <string name="recent_readings">Недавние замеры</string>
 
     <string name="action_undo">Отменить</string>
     <string name="action_reset">Заново</string>

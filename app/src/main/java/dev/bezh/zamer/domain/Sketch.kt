@@ -4,13 +4,17 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sign
 
 /** Millimetres between neighbouring dots of the sketch grid, so the grid is a scale reference. */
 const val GRID_MM = 500
 
 /** A point of the sketch, in millimetres. */
 @Serializable
-data class Pt(val x: Int, val y: Int)
+data class Pt(val x: Int, val y: Int) {
+    operator fun plus(o: Pt) = Pt(x + o.x, y + o.y)
+    operator fun minus(o: Pt) = Pt(x - o.x, y - o.y)
+}
 
 /** A line a shape is drawn with, standing for the shape's side number [side]. */
 data class Edge(val a: Pt, val b: Pt, val side: Int)
@@ -30,6 +34,7 @@ sealed interface SketchShape {
     /** The same shape with every point passed through [f]. */
     fun mapPoints(f: (Pt) -> Pt): SketchShape
 
+    /** The shape with side [side] measured as [mm] and redrawn that long, its first point staying where it is. */
     fun measured(side: Int, mm: Int): SketchShape
 }
 
@@ -40,7 +45,17 @@ data class Segment(override val id: Long, val a: Pt, val b: Pt, val mm: Int? = n
     override val edges get() = listOf(Edge(a, b, 0))
     override val points get() = listOf(a, b)
     override fun mapPoints(f: (Pt) -> Pt) = copy(a = f(a), b = f(b))
-    override fun measured(side: Int, mm: Int) = copy(mm = mm)
+
+    /** Moves [b] along the line, so the direction stays. */
+    override fun measured(side: Int, mm: Int): Segment {
+        val dx = (b.x - a.x).toDouble()
+        val dy = (b.y - a.y).toDouble()
+        val length = hypot(dx, dy)
+        // A wall stretched until its ends met has no direction left to keep.
+        if (length == 0.0) return copy(mm = mm)
+        val k = mm / length
+        return copy(b = Pt(a.x + (dx * k).roundToInt(), a.y + (dy * k).roundToInt()), mm = mm)
+    }
 }
 
 /** An axis-aligned rectangle between opposite corners [a] and [b]; side 0 is the width, side 1 the height. */
@@ -78,7 +93,10 @@ data class Rect(
     val area: Double?
         get() = if (widthMm != null && heightMm != null) widthMm / 1000.0 * (heightMm / 1000.0) else null
 
-    override fun measured(side: Int, mm: Int) = if (side == 0) copy(widthMm = mm) else copy(heightMm = mm)
+    /** Moves [b] away from or towards [a], on the same side of it. */
+    override fun measured(side: Int, mm: Int) =
+        if (side == 0) copy(b = Pt(a.x + mm * (b.x - a.x).sign, b.y), widthMm = mm)
+        else copy(b = Pt(b.x, a.y + mm * (b.y - a.y).sign), heightMm = mm)
 }
 
 /** Side [side] of the shape [shapeId]. */
@@ -97,12 +115,16 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         if (shape.edges.any { it.a == it.b } || shapes.any { it.id == shape.id }) this
         else Sketch(shapes + shape, SideRef(shape.id, 0))
 
-    /** Measures the target with [mm], then waits for the same shape's next unmeasured side, if any. */
+    /**
+     * Measures the target with [mm] and redraws it that long, with the shapes joined to it following; then waits for
+     * the same shape's next unmeasured side, if any.
+     */
     fun put(mm: Int): Sketch {
         val t = target ?: return this
-        val shape = shapes.first { it.id == t.shapeId }.measured(t.side, mm)
+        val before = shapes.first { it.id == t.shapeId }
+        val shape = before.measured(t.side, mm)
         val next = shape.sides.indexOfFirst { it == null }.takeIf { it >= 0 }?.let { SideRef(shape.id, it) }
-        return Sketch(shapes.map { if (it.id == shape.id) shape else it }, next)
+        return Sketch(follow(shapes, before, shape), next)
     }
 
     /** The next reading re-measures [ref]. */
@@ -138,6 +160,45 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         .filter { it.second <= tolerance }
         .minByOrNull { it.second }
         ?.first
+
+    /**
+     * [shapes] with [before] replaced by [after] and the shapes joined where its points moved following them.
+     * A follower touching nothing that stays slides along whole, so a chain of walls keeps its shape and pulls the
+     * next one in turn. One that also touches a point that stays is stretched instead, only its ends at a moving point
+     * following, which lets the wall closing a loop give; a rectangle is left as it is rather than skewed.
+     * Shapes joined only where [before] stays keep their place and hold their other points too.
+     */
+    private fun follow(shapes: List<SketchShape>, before: SketchShape, after: SketchShape): List<SketchShape> {
+        val moves = before.points.zip(after.points).filter { (p, q) -> p != q }
+        val done = hashMapOf(after.id to after)
+        if (moves.isNotEmpty()) {
+            val d = moves.first().let { (p, q) -> q - p }
+            val moving = moves.mapTo(HashSet()) { it.first }
+            val anchors = before.points.toSet() - moving
+            val pinned = anchors.toHashSet()
+            for (s in shapes) {
+                if (s.id !in done && s.points.any { it in anchors } && s.points.none { it in moving }) {
+                    done[s.id] = s
+                    pinned += s.points
+                }
+            }
+            val queue = ArrayDeque(moving)
+            while (queue.isNotEmpty()) {
+                val p = queue.removeFirst()
+                for (s in shapes) {
+                    if (s.id in done || p !in s.points) continue
+                    done[s.id] = if (s.points.none { it in pinned }) {
+                        for (q in s.points) if (moving.add(q)) queue.addLast(q)
+                        s.mapPoints { it + d }
+                    } else {
+                        pinned += s.points.filterNot { it in moving }
+                        if (s is Rect) s else s.mapPoints { if (it in moving) it + d else it }
+                    }
+                }
+            }
+        }
+        return shapes.map { done[it.id] ?: it }
+    }
 
     private fun isSide(ref: SideRef) = shapes.any { it.id == ref.shapeId && ref.side in it.sides.indices }
 

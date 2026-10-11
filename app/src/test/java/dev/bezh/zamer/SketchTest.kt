@@ -35,7 +35,7 @@ class SketchTest {
         val width = Sketch().add(room).put(4000)
         assertEquals(SideRef(2, 1), width.target)
         val both = width.put(3000)
-        assertEquals(room.copy(widthMm = 4000, heightMm = 3000), both.shapes.single())
+        assertEquals(room.copy(b = Pt(4000, 3000), widthMm = 4000, heightMm = 3000), both.shapes.single())
         assertNull(both.target)
     }
 
@@ -43,7 +43,7 @@ class SketchTest {
     fun selectedSideIsMeasuredAgainWithoutTouchingTheOthers() {
         val done = Sketch().add(room).put(4000).put(3000)
         val again = done.select(SideRef(2, 0)).put(4100)
-        assertEquals(room.copy(widthMm = 4100, heightMm = 3000), again.shapes.single())
+        assertEquals(room.copy(b = Pt(4100, 3000), widthMm = 4100, heightMm = 3000), again.shapes.single())
         assertNull("both sides are measured, so nothing waits", again.target)
     }
 
@@ -78,7 +78,7 @@ class SketchTest {
     @Test
     fun undoRemovesTheLastShape() {
         val s = Sketch().add(line).put(1000).add(room)
-        assertEquals(Sketch(listOf(line.copy(mm = 1000))), s.undo())
+        assertEquals(Sketch(listOf(line.copy(b = Pt(1000, 0), mm = 1000))), s.undo())
         val empty = Sketch()
         assertSame(empty, empty.undo())
         assertEquals(Sketch(), s.clear())
@@ -103,6 +103,98 @@ class SketchTest {
     }
 
     @Test
+    fun measuringASegmentRedrawsItThatLongFromItsStart() {
+        val s = Sketch().add(Segment(1, Pt(0, 0), Pt(1000, 0))).put(4000)
+        assertEquals(Segment(1, Pt(0, 0), Pt(4000, 0), mm = 4000), s.shapes.single())
+
+        val diagonal = Sketch().add(Segment(1, Pt(0, 0), Pt(1000, 1000))).put(2000).shapes.single() as Segment
+        assertEquals("1414.2 mm each way keeps 45 degrees", Pt(1414, 1414), diagonal.b)
+
+        val back = Sketch().add(Segment(1, Pt(500, 500), Pt(-500, 1500))).put(1000).shapes.single() as Segment
+        assertEquals(Pt(500, 500), back.a)
+        assertEquals(Pt(-207, 1207), back.b)
+
+        val again = s.select(SideRef(1, 0)).put(1500)
+        assertEquals("measuring again redraws again", Pt(1500, 0), (again.shapes.single() as Segment).b)
+    }
+
+    @Test
+    fun measuringARectangleMovesTheCornerAwayFromItsStart() {
+        val leftUp = Rect(1, Pt(3000, 2000), Pt(1000, 0))
+        val width = Sketch().add(leftUp).put(4000)
+        assertEquals(Rect(1, Pt(3000, 2000), Pt(-1000, 0), widthMm = 4000), width.shapes.single())
+        val both = width.put(1000)
+        assertEquals(Rect(1, Pt(3000, 2000), Pt(-1000, 1000), 4000, 1000), both.shapes.single())
+        val narrower = both.select(SideRef(1, 0)).put(500)
+        assertEquals(Rect(1, Pt(3000, 2000), Pt(2500, 1000), 500, 1000), narrower.shapes.single())
+    }
+
+    @Test
+    fun anOpenChainOfWallsSlidesAlongWithTheMeasuredOne() {
+        val s = Sketch()
+            .add(Segment(1, Pt(0, 0), Pt(1000, 0)))
+            .add(Segment(2, Pt(1000, 0), Pt(1000, 1000)))
+            .add(Segment(3, Pt(1000, 1000), Pt(2000, 1000), mm = 1000))
+            .add(Segment(4, Pt(-1000, 0), Pt(0, 0)))
+            .select(SideRef(1, 0))
+            .put(4000)
+        assertEquals(
+            listOf(
+                Segment(1, Pt(0, 0), Pt(4000, 0), mm = 4000),
+                Segment(2, Pt(4000, 0), Pt(4000, 1000)),
+                Segment(3, Pt(4000, 1000), Pt(5000, 1000), mm = 1000),
+                Segment(4, Pt(-1000, 0), Pt(0, 0)),
+            ),
+            s.shapes,
+        )
+    }
+
+    @Test
+    fun aClosedLoopStretchesTheWallThatClosesItAndKeepsTheStartsNeighbour() {
+        val s = Sketch()
+            .add(Segment(1, Pt(0, 0), Pt(1000, 0)))
+            .add(Segment(2, Pt(1000, 0), Pt(1000, 1000)))
+            .add(Segment(3, Pt(1000, 1000), Pt(0, 1000), mm = 1000))
+            .add(Segment(4, Pt(0, 1000), Pt(0, 0)))
+            .select(SideRef(1, 0))
+            .put(4000)
+        assertEquals(
+            listOf(
+                Segment(1, Pt(0, 0), Pt(4000, 0), mm = 4000),
+                Segment(2, Pt(4000, 0), Pt(4000, 1000)),
+                Segment(3, Pt(4000, 1000), Pt(0, 1000), mm = 1000),
+                Segment(4, Pt(0, 1000), Pt(0, 0)),
+            ),
+            s.shapes,
+        )
+    }
+
+    @Test
+    fun aRectangleJoinedAtAMovedPointSlidesAndPullsWhatHangsOffItsCorners() {
+        val s = Sketch()
+            .add(Segment(1, Pt(0, 0), Pt(1000, 0)))
+            .add(Rect(2, Pt(1000, 0), Pt(2000, 1000), widthMm = 1000))
+            .add(Segment(3, Pt(1000, 1000), Pt(1000, 2000)))
+            .select(SideRef(1, 0))
+            .put(2000)
+        assertEquals(
+            listOf(
+                Segment(1, Pt(0, 0), Pt(2000, 0), mm = 2000),
+                Rect(2, Pt(2000, 0), Pt(3000, 1000), widthMm = 1000),
+                Segment(3, Pt(2000, 1000), Pt(2000, 2000)),
+            ),
+            s.shapes,
+        )
+    }
+
+    @Test
+    fun aRectangleHeldAtBothEndsOfTheMeasuredSideIsNotSkewed() {
+        val box = Rect(2, Pt(0, 0), Pt(1000, -1000))
+        val s = Sketch().add(Segment(1, Pt(0, 0), Pt(1000, 0))).add(box).select(SideRef(1, 0)).put(3000)
+        assertEquals(listOf(Segment(1, Pt(0, 0), Pt(3000, 0), mm = 3000), box), s.shapes)
+    }
+
+    @Test
     fun drawingSnapsToANearbyCornerBeforeTheNearestDot() {
         val s = Sketch().add(room)
         assertEquals(Pt(2500, 1500), s.snap(2900f, 1700f, reach = 500f))
@@ -124,8 +216,8 @@ class SketchTest {
         assertEquals(s, StoreJson.decodeFromString<Sketch>(StoreJson.encodeToString(s)))
 
         val stored = """{"shapes":[""" +
-            """{"type":"segment","id":1,"a":{"x":0,"y":0},"b":{"x":2000,"y":0},"mm":2345},""" +
-            """{"type":"rect","id":2,"a":{"x":0,"y":0},"b":{"x":2500,"y":1500},"widthMm":4000}""" +
+            """{"type":"segment","id":1,"a":{"x":0,"y":0},"b":{"x":2345,"y":0},"mm":2345},""" +
+            """{"type":"rect","id":2,"a":{"x":0,"y":0},"b":{"x":4000,"y":1500},"widthMm":4000}""" +
             """],"target":{"shapeId":2,"side":1}}"""
         assertEquals(s, StoreJson.decodeFromString<Sketch>(stored))
     }

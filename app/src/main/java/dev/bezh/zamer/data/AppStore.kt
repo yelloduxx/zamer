@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.bezh.zamer.domain.GRID_MM
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Reading
 import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.UnitSystem
@@ -145,14 +147,14 @@ class AppStore(private val context: Context) {
 
     // ---- sketch ----
 
-    val sketch: Flow<Sketch> = store.data.map { decodeSketch(it[SKETCH]) }.distinctUntilChanged()
+    val sketch: Flow<Sketch> = store.data.map { decodeSketch(it[SKETCH], it[GRID_SKETCH]) }.distinctUntilChanged()
 
     suspend fun updateSketch(transform: (Sketch) -> Sketch) {
-        store.edit { p -> p[SKETCH] = json.encodeToString(transform(decodeSketch(p[SKETCH]))) }
+        store.edit { p ->
+            p[SKETCH] = json.encodeToString(transform(decodeSketch(p[SKETCH], p[GRID_SKETCH])))
+            p.remove(GRID_SKETCH)
+        }
     }
-
-    private fun decodeSketch(raw: String?): Sketch =
-        raw?.let { runCatching { json.decodeFromString<Sketch>(it) }.getOrNull() } ?: Sketch()
 
     private fun decodeHistory(raw: String?): List<HistoryEntry> = decodeList(raw)
 
@@ -194,6 +196,17 @@ class AppStore(private val context: Context) {
         val HISTORY = stringPreferencesKey("history_json")
         val WORKSPACE = stringPreferencesKey("workspace_json")
         val READINGS = stringPreferencesKey("readings_json")
-        val SKETCH = stringPreferencesKey("sketch_json")
+        val SKETCH = stringPreferencesKey("sketch_mm_json")
+
+        /** A sketch saved before coordinates were millimetres, in units of one dot spacing. */
+        val GRID_SKETCH = stringPreferencesKey("sketch_json")
     }
+}
+
+/** The stored sketch from [mm], or else from [grid], an older one counted in dot spacings, scaled to millimetres. */
+internal fun decodeSketch(mm: String?, grid: String?): Sketch {
+    fun decode(raw: String?) = raw?.let { runCatching { StoreJson.decodeFromString<Sketch>(it) }.getOrNull() }
+    decode(mm)?.let { return it }
+    val old = decode(grid) ?: return Sketch()
+    return old.copy(shapes = old.shapes.map { s -> s.mapPoints { Pt(it.x * GRID_MM, it.y * GRID_MM) } })
 }

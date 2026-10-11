@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
 import dev.bezh.zamer.domain.Formatter
+import dev.bezh.zamer.domain.GRID_MM
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.Segment
@@ -88,7 +89,14 @@ import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
 
+/** On-screen spacing of the dots, [GRID_MM] apart, at zoom 1. */
 private val GridSpacing = 24.dp
+
+/** Dots closer than this on screen are thinned out to every few. */
+private val MinDotGap = 12.dp
+
+/** How many dot spacings apart the shown dots may be, from 0.5 m up to 10 m. */
+private val DotSteps = listOf(1, 2, 10, 20)
 private const val MIN_SCALE = 0.5f
 private const val MAX_SCALE = 3f
 
@@ -284,8 +292,9 @@ private fun SketchCanvas(
     val spacing = with(density) { GridSpacing.toPx() }
     val snapReach = with(density) { 20.dp.toPx() }
     val tapReach = with(density) { 24.dp.toPx() }
+    val minDotGap = with(density) { MinDotGap.toPx() }
     var scale by rememberSaveable { mutableFloatStateOf(1f) }
-    // Where grid point (0, 0) sits on the canvas, in pixels.
+    // Where the sketch's (0, 0) sits on the canvas, in pixels.
     var originX by rememberSaveable { mutableFloatStateOf(spacing) }
     var originY by rememberSaveable { mutableFloatStateOf(spacing) }
     var preview by remember { mutableStateOf<Pair<Pt, Pt>?>(null) }
@@ -304,11 +313,11 @@ private fun SketchCanvas(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    fun grid(p: Offset): Offset {
-                        val unit = spacing * scale
-                        return Offset((p.x - originX) / unit, (p.y - originY) / unit)
+                    fun mmPerPx() = GRID_MM / (spacing * scale)
+                    fun world(p: Offset) = Offset(p.x - originX, p.y - originY) * mmPerPx()
+                    fun snap(p: Offset): Pt = world(p).let {
+                        current.snap(it.x, it.y, snapReach * mmPerPx(), GRID_MM * dotStep(spacing * scale, minDotGap))
                     }
-                    fun snap(p: Offset): Pt = grid(p).let { current.snap(it.x, it.y, snapReach / (spacing * scale)) }
 
                     var start: Pt? = null
                     var transforming = false
@@ -347,16 +356,17 @@ private fun SketchCanvas(
                     when {
                         transforming -> Unit
                         drawn != null -> draw(drawn.first, drawn.second)
-                        start == null -> grid(down.position).let { g ->
-                            current.sideAt(g.x, g.y, tapReach / (spacing * scale))?.let(select)
+                        start == null -> world(down.position).let { w ->
+                            current.sideAt(w.x, w.y, tapReach * mmPerPx())?.let(select)
                         }
                     }
                 }
             },
     ) {
-        val unit = spacing * scale
-        fun at(p: Pt) = Offset(originX + p.x * unit, originY + p.y * unit)
+        val pxPerMm = spacing * scale / GRID_MM
+        fun at(p: Pt) = Offset(originX + p.x * pxPerMm, originY + p.y * pxPerMm)
 
+        val unit = spacing * scale * dotStep(spacing * scale, minDotGap)
         val columns = ceil(-originX / unit).toInt()..floor((size.width - originX) / unit).toInt()
         val rows = ceil(-originY / unit).toInt()..floor((size.height - originY) / unit).toInt()
         val dots = buildList {
@@ -418,6 +428,9 @@ private fun SketchCanvas(
         }
     }
 }
+
+/** How many dot spacings apart to show dots [dotPx] apart at full density, so they stay at least [minGap] apart. */
+private fun dotStep(dotPx: Float, minGap: Float) = DotSteps.firstOrNull { dotPx * it >= minGap } ?: DotSteps.last()
 
 /** Turns a line's angle so text along it never reads upside down; vertical text reads bottom to top. */
 private fun upright(degrees: Float) = when {

@@ -5,7 +5,10 @@ import kotlinx.serialization.Serializable
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
-/** A dot of the sketch grid; one unit is the spacing between dots. */
+/** Millimetres between neighbouring dots of the sketch grid, so the grid is a scale reference. */
+const val GRID_MM = 500
+
+/** A point of the sketch, in millimetres. */
 @Serializable
 data class Pt(val x: Int, val y: Int)
 
@@ -21,6 +24,12 @@ sealed interface SketchShape {
 
     val edges: List<Edge>
 
+    /** Every end or corner, where other shapes can join this one. */
+    val points: List<Pt>
+
+    /** The same shape with every point passed through [f]. */
+    fun mapPoints(f: (Pt) -> Pt): SketchShape
+
     fun measured(side: Int, mm: Int): SketchShape
 }
 
@@ -29,6 +38,8 @@ sealed interface SketchShape {
 data class Segment(override val id: Long, val a: Pt, val b: Pt, val mm: Int? = null) : SketchShape {
     override val sides get() = listOf(mm)
     override val edges get() = listOf(Edge(a, b, 0))
+    override val points get() = listOf(a, b)
+    override fun mapPoints(f: (Pt) -> Pt) = copy(a = f(a), b = f(b))
     override fun measured(side: Int, mm: Int) = copy(mm = mm)
 }
 
@@ -59,6 +70,10 @@ data class Rect(
             )
         }
 
+    /** [a] and [b] first, then the other two corners. */
+    override val points get() = listOf(a, b, Pt(a.x, b.y), Pt(b.x, a.y))
+    override fun mapPoints(f: (Pt) -> Pt) = copy(a = f(a), b = f(b))
+
     /** Square metres, once both sides are measured. */
     val area: Double?
         get() = if (widthMm != null && heightMm != null) widthMm / 1000.0 * (heightMm / 1000.0) else null
@@ -70,7 +85,7 @@ data class Rect(
 @Serializable
 data class SideRef(val shapeId: Long, val side: Int)
 
-/** Shapes drawn on the grid; [target] is the side the next reading measures. */
+/** Shapes drawn to scale; [target] is the side the next reading measures. */
 @Serializable
 data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideRef? = null) {
     init {
@@ -104,17 +119,20 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
     val totalArea: Double?
         get() = shapes.mapNotNull { (it as? Rect)?.area }.takeIf { it.isNotEmpty() }?.sum()
 
-    /** The dot nearest to grid position ([x], [y]), preferring a shape's end or corner within [reach] units. */
-    fun snap(x: Float, y: Float, reach: Float = 1f): Pt {
+    /**
+     * The point a finger at ([x], [y]) mm draws from or to: a shape's end or corner within [reach] mm, or else the
+     * nearest dot of a grid [step] mm apart.
+     */
+    fun snap(x: Float, y: Float, reach: Float, step: Int = GRID_MM): Pt {
         val corner = shapes.asSequence()
-            .flatMap { s -> s.edges.flatMap { listOf(it.a, it.b) } }
+            .flatMap { it.points }
             .map { it to hypot(it.x - x, it.y - y) }
             .filter { it.second <= reach }
             .minByOrNull { it.second }
-        return corner?.first ?: Pt(x.roundToInt(), y.roundToInt())
+        return corner?.first ?: Pt((x / step).roundToInt() * step, (y / step).roundToInt() * step)
     }
 
-    /** The side drawn nearest to grid position ([x], [y]), if one is within [tolerance] units. */
+    /** The side drawn nearest to ([x], [y]) mm, if one is within [tolerance] mm. */
     fun sideAt(x: Float, y: Float, tolerance: Float): SideRef? = shapes
         .flatMap { s -> s.edges.map { SideRef(s.id, it.side) to distance(x, y, it) } }
         .filter { it.second <= tolerance }

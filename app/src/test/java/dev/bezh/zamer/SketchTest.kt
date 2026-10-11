@@ -1,6 +1,7 @@
 package dev.bezh.zamer
 
 import dev.bezh.zamer.data.StoreJson
+import dev.bezh.zamer.data.decodeSketch
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.Segment
@@ -12,8 +13,8 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 class SketchTest {
-    private val line = Segment(1, Pt(0, 0), Pt(4, 0))
-    private val room = Rect(2, Pt(0, 0), Pt(5, 3))
+    private val line = Segment(1, Pt(0, 0), Pt(2000, 0))
+    private val room = Rect(2, Pt(0, 0), Pt(2500, 1500))
 
     @Test
     fun addedShapeWaitsForItsFirstSide() {
@@ -86,9 +87,9 @@ class SketchTest {
     @Test
     fun shapesWithoutLengthOrAreaAreRejected() {
         val s = Sketch().add(line)
-        assertSame(s, s.add(Segment(5, Pt(2, 2), Pt(2, 2))))
-        assertSame(s, s.add(Rect(6, Pt(1, 1), Pt(1, 4))))
-        assertSame(s, s.add(Rect(7, Pt(1, 1), Pt(4, 1))))
+        assertSame(s, s.add(Segment(5, Pt(1000, 1000), Pt(1000, 1000))))
+        assertSame(s, s.add(Rect(6, Pt(500, 500), Pt(500, 2000))))
+        assertSame(s, s.add(Rect(7, Pt(500, 500), Pt(2000, 500))))
     }
 
     @Test
@@ -97,23 +98,24 @@ class SketchTest {
         assertNull(half.totalArea)
         val one = half.put(2500)
         assertEquals(10.0, (one.shapes.single() as Rect).area!!, 1e-9)
-        val two = one.add(Rect(3, Pt(10, 0), Pt(12, 2))).put(2000).put(1500).add(line).put(9000)
+        val two = one.add(Rect(3, Pt(5000, 0), Pt(6000, 1000))).put(2000).put(1500).add(line).put(9000)
         assertEquals(13.0, two.totalArea!!, 1e-9)
     }
 
     @Test
     fun drawingSnapsToANearbyCornerBeforeTheNearestDot() {
         val s = Sketch().add(room)
-        assertEquals(Pt(5, 3), s.snap(5.8f, 3.4f))
-        assertEquals(Pt(8, 1), s.snap(7.6f, 1.2f))
+        assertEquals(Pt(2500, 1500), s.snap(2900f, 1700f, reach = 500f))
+        assertEquals(Pt(4000, 500), s.snap(3800f, 600f, reach = 500f))
+        assertEquals("dots shown farther apart are snapped to instead", Pt(4000, 1000), s.snap(3800f, 600f, 500f, step = 1000))
     }
 
     @Test
     fun tapPicksTheNearestSideWithinReach() {
         val s = Sketch().add(room)
-        assertEquals(SideRef(2, 0), s.sideAt(2f, 2.8f, 0.5f))
-        assertEquals(SideRef(2, 1), s.sideAt(5.2f, 1f, 0.5f))
-        assertNull(s.sideAt(2.5f, 1.5f, 0.5f))
+        assertEquals(SideRef(2, 0), s.sideAt(1000f, 1400f, 250f))
+        assertEquals(SideRef(2, 1), s.sideAt(2600f, 500f, 250f))
+        assertNull(s.sideAt(1250f, 750f, 250f))
     }
 
     @Test
@@ -122,9 +124,30 @@ class SketchTest {
         assertEquals(s, StoreJson.decodeFromString<Sketch>(StoreJson.encodeToString(s)))
 
         val stored = """{"shapes":[""" +
-            """{"type":"segment","id":1,"a":{"x":0,"y":0},"b":{"x":4,"y":0},"mm":2345},""" +
-            """{"type":"rect","id":2,"a":{"x":0,"y":0},"b":{"x":5,"y":3},"widthMm":4000}""" +
+            """{"type":"segment","id":1,"a":{"x":0,"y":0},"b":{"x":2000,"y":0},"mm":2345},""" +
+            """{"type":"rect","id":2,"a":{"x":0,"y":0},"b":{"x":2500,"y":1500},"widthMm":4000}""" +
             """],"target":{"shapeId":2,"side":1}}"""
         assertEquals(s, StoreJson.decodeFromString<Sketch>(stored))
+    }
+
+    @Test
+    fun sketchSavedInDotSpacingsLoadsInMillimetres() {
+        val grid = """{"shapes":[""" +
+            """{"type":"segment","id":1,"a":{"x":1,"y":2},"b":{"x":5,"y":2},"mm":2345},""" +
+            """{"type":"rect","id":2,"a":{"x":0,"y":0},"b":{"x":-3,"y":4},"widthMm":4000}""" +
+            """],"target":{"shapeId":2,"side":1}}"""
+        val expected = Sketch(
+            listOf(
+                Segment(1, Pt(500, 1000), Pt(2500, 1000), mm = 2345),
+                Rect(2, Pt(0, 0), Pt(-1500, 2000), widthMm = 4000),
+            ),
+            SideRef(2, 1),
+        )
+        assertEquals(expected, decodeSketch(mm = null, grid = grid))
+
+        val current = StoreJson.encodeToString(Sketch().add(line))
+        assertEquals("a sketch already in millimetres wins", Sketch().add(line), decodeSketch(current, grid))
+        assertEquals(Sketch(), decodeSketch(null, null))
+        assertEquals("unreadable data starts afresh", Sketch(), decodeSketch(null, "{not json"))
     }
 }

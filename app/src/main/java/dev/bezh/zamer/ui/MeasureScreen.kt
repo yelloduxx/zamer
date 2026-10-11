@@ -27,14 +27,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
@@ -46,10 +42,8 @@ import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,19 +61,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -396,39 +383,10 @@ private fun InlineName(saved: HistoryEntry, onRename: (Long, String) -> Unit) {
         }
         return
     }
-    var text by rememberSaveable(saved.id, stateSaver = TextFieldValue.Saver) {
-        val initial = saved.title.orEmpty()
-        mutableStateOf(TextFieldValue(initial, TextRange(initial.length)))
-    }
-    val focus = remember { FocusRequester() }
-    var focused by remember { mutableStateOf(false) }
-    fun commit() {
-        onRename(saved.id, text.text)
+    NameField(saved.title, onCommit = {
+        onRename(saved.id, it)
         editing = false
-    }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    OutlinedTextField(
-        value = text,
-        onValueChange = { text = it },
-        singleLine = true,
-        shape = CircleShape,
-        placeholder = { Text(stringResource(R.string.name_hint)) },
-        trailingIcon = {
-            IconButton(onClick = ::commit) {
-                Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.action_save))
-            }
-        },
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { commit() }),
-        modifier = Modifier
-            .fillMaxWidth()
-            .focusRequester(focus)
-            // Tapping elsewhere keeps what was typed rather than throwing it away.
-            .onFocusChanged {
-                if (focused && !it.isFocused) commit()
-                focused = it.isFocused
-            },
-    )
+    })
 }
 
 @Composable

@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,9 +44,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
@@ -97,13 +99,13 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
     val scope = rememberCoroutineScope()
     var tab by rememberSaveable { mutableStateOf(HistoryTab.Results) }
     var confirmClear by remember { mutableStateOf(false) }
-    var renaming by rememberSaveable { mutableStateOf<Long?>(null) }
     val tabEmpty = when (tab) {
         HistoryTab.Results -> entries.isEmpty()
         HistoryTab.Readings -> readings.isEmpty()
     }
 
-    Column(Modifier.fillMaxSize().padding(contentPadding)) {
+    // imePadding keeps a card being renamed above the keyboard.
+    Column(Modifier.fillMaxSize().padding(contentPadding).consumeWindowInsets(contentPadding).imePadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -118,7 +120,7 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
             HistoryTab.Results -> ResultsTab(
                 entries = entries,
                 formatter = formatter,
-                onRename = { renaming = it.id },
+                onRename = { entry, name -> scope.launch { container.store.renameHistory(entry.id, name) } },
                 onDelete = { scope.launch { container.store.deleteHistory(it.id) } },
             )
             HistoryTab.Readings -> ReadingsTab(
@@ -148,17 +150,6 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-
-    renaming?.let { id -> entries.find { it.id == id } }?.let { entry ->
-        NameDialog(
-            initial = entry.title,
-            onDismiss = { renaming = null },
-            onSave = {
-                scope.launch { container.store.renameHistory(entry.id, it) }
-                renaming = null
-            },
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -184,7 +175,7 @@ private fun TabSelector(selected: HistoryTab, onSelect: (HistoryTab) -> Unit, mo
 private fun ResultsTab(
     entries: List<HistoryEntry>,
     formatter: Formatter,
-    onRename: (HistoryEntry) -> Unit,
+    onRename: (HistoryEntry, String) -> Unit,
     onDelete: (HistoryEntry) -> Unit,
 ) {
     if (entries.isEmpty()) {
@@ -211,7 +202,7 @@ private fun ResultsTab(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(shown, key = { it.id }) { entry ->
-            SwipeToDelete(onDelete = { onDelete(entry) }) { HistoryCard(entry, formatter, onRename = { onRename(entry) }) }
+            SwipeToDelete(onDelete = { onDelete(entry) }) { HistoryCard(entry, formatter, onRename = { onRename(entry, it) }) }
         }
     }
 }
@@ -258,41 +249,54 @@ private fun describe(entry: HistoryEntry, formatter: Formatter, context: Context
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun HistoryCard(entry: HistoryEntry, formatter: Formatter, onRename: () -> Unit) {
+private fun HistoryCard(entry: HistoryEntry, formatter: Formatter, onRename: (String) -> Unit) {
     val context = LocalContext.current
     val (total, sides) = describe(entry, formatter, context)
     val value = if (entry.mode == MeasureMode.DISTANCE) total else "$total  ($sides)"
+    var editing by rememberSaveable(entry.id) { mutableStateOf(false) }
     Surface(
-        onClick = onRename,
+        onClick = { editing = true },
         shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(52.dp).clip(MaterialShapes.Cookie6Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(entry.mode.icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                if (entry.title != null) {
-                    Text(entry.title, style = MaterialTheme.typography.titleLarge)
-                    Text(total, style = MaterialTheme.typography.titleMedium)
-                } else {
-                    Text(total, style = MaterialTheme.typography.headlineSmall)
+        Column {
+            Row(Modifier.padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(52.dp).clip(MaterialShapes.Cookie6Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(entry.mode.icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
-                if (entry.mode != MeasureMode.DISTANCE) {
-                    Text(sides, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    if (entry.title != null) {
+                        Text(entry.title, style = MaterialTheme.typography.titleLarge)
+                        Text(total, style = MaterialTheme.typography.titleMedium)
+                    } else {
+                        Text(total, style = MaterialTheme.typography.headlineSmall)
+                    }
+                    if (entry.mode != MeasureMode.DISTANCE) {
+                        Text(sides, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text(relativeTime(context, entry.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(relativeTime(context, entry.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(onClick = { copy(context, total) }) {
+                    Icon(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy))
+                }
+                IconButton(onClick = { share(context, listOfNotNull(entry.title, value).joinToString(": ")) }) {
+                    Icon(Icons.Rounded.IosShare, stringResource(R.string.action_share))
+                }
             }
-            IconButton(onClick = { copy(context, total) }) {
-                Icon(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy))
-            }
-            IconButton(onClick = { share(context, listOfNotNull(entry.title, value).joinToString(": ")) }) {
-                Icon(Icons.Rounded.IosShare, stringResource(R.string.action_share))
+            if (editing) {
+                NameField(
+                    initial = entry.title,
+                    onCommit = {
+                        onRename(it)
+                        editing = false
+                    },
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                )
             }
         }
     }

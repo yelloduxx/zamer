@@ -6,8 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,14 +18,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothConnected
 import androidx.compose.material.icons.rounded.BluetoothDisabled
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Height
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.ViewInAr
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -151,33 +153,44 @@ fun ConnectionPill(
     }
 }
 
-/** Asks for a result's name; [initial] prefills it when renaming. */
+/**
+ * Edits a result's name in place. Done, the check button, or tapping elsewhere all save via [onCommit];
+ * a blank name removes it.
+ */
 @Composable
-fun NameDialog(initial: String?, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+fun NameField(initial: String?, onCommit: (String) -> Unit, modifier: Modifier = Modifier) {
     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initial.orEmpty(), TextRange(initial.orEmpty().length)))
     }
     val focus = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    var done by remember { mutableStateOf(false) }
+    fun commit() {
+        if (done) return
+        done = true
+        onCommit(text.text)
+    }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.name_title)) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.name_hint)) },
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(onDone = { onSave(text.text) }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            )
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it },
+        singleLine = true,
+        shape = CircleShape,
+        placeholder = { Text(stringResource(R.string.name_hint)) },
+        trailingIcon = {
+            IconButton(onClick = ::commit) {
+                Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.action_save))
+            }
         },
-        confirmButton = { TextButton(onClick = { onSave(text.text) }) { Text(stringResource(R.string.action_save)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { commit() }),
+        modifier = modifier
+            .fillMaxWidth()
+            .focusRequester(focus)
+            .onFocusChanged {
+                if (focused && !it.isFocused) commit()
+                focused = it.isFocused
+            },
     )
 }
 

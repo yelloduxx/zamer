@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.Reading
+import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.UnitSystem
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.flow.Flow
@@ -142,6 +143,17 @@ class AppStore(private val context: Context) {
     private fun decodeWorkspace(raw: String?): Workspace =
         raw?.let { runCatching { json.decodeFromString<Workspace>(it) }.getOrNull() } ?: Workspace()
 
+    // ---- sketch ----
+
+    val sketch: Flow<Sketch> = store.data.map { decodeSketch(it[SKETCH]) }.distinctUntilChanged()
+
+    suspend fun updateSketch(transform: (Sketch) -> Sketch) {
+        store.edit { p -> p[SKETCH] = json.encodeToString(transform(decodeSketch(p[SKETCH]))) }
+    }
+
+    private fun decodeSketch(raw: String?): Sketch =
+        raw?.let { runCatching { json.decodeFromString<Sketch>(it) }.getOrNull() } ?: Sketch()
+
     private fun decodeHistory(raw: String?): List<HistoryEntry> = decodeList(raw)
 
     // ---- readings log, newest first ----
@@ -182,5 +194,6 @@ class AppStore(private val context: Context) {
         val HISTORY = stringPreferencesKey("history_json")
         val WORKSPACE = stringPreferencesKey("workspace_json")
         val READINGS = stringPreferencesKey("readings_json")
+        val SKETCH = stringPreferencesKey("sketch_json")
     }
 }

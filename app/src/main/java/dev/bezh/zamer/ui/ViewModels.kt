@@ -4,12 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.bezh.zamer.AppContainer
+import dev.bezh.zamer.ReadingTarget
 import dev.bezh.zamer.ble.FoundDevice
 import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.ble.PairOutcome
 import dev.bezh.zamer.data.HistoryEntry
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.Pt
+import dev.bezh.zamer.domain.Reading
+import dev.bezh.zamer.domain.Rect
+import dev.bezh.zamer.domain.Segment
+import dev.bezh.zamer.domain.SideRef
+import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +32,7 @@ class ViewModelFactory(private val container: AppContainer) : ViewModelProvider.
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
         MeasureViewModel::class.java -> MeasureViewModel(container)
         PairingViewModel::class.java -> PairingViewModel(container)
+        SketchViewModel::class.java -> SketchViewModel(container)
         else -> error("Unknown ViewModel $modelClass")
     } as T
 }
@@ -55,7 +63,7 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
         val ids = ws.drafts.values.mapNotNullTo(HashSet()) { it.savedId }
         MeasureUiState(
             workspace = ws,
-            recent = log.map { it.mm }.distinct().take(RECENT_CHIPS),
+            recent = log.recentValues(),
             saved = history.filter { it.id in ids }.associateBy { it.id },
         )
     }
@@ -66,7 +74,7 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasureUiState())
 
     init {
-        viewModelScope.launch { c.repository.readings.collect { put(it.mm, fromDevice = true) } }
+        viewModelScope.launch { c.readings(ReadingTarget.MEASURE).collect { put(it.mm, fromDevice = true) } }
     }
 
     /** Treats [mm] as the next reading; [fromDevice] readings also buzz. */
@@ -106,9 +114,67 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     private fun edit(transform: (Workspace) -> Workspace) {
         viewModelScope.launch { c.store.updateWorkspace(transform) }
     }
+}
 
-    private companion object {
-        const val RECENT_CHIPS = 10
+/** Distinct values from the readings log, newest first, offered for reuse. */
+private fun List<Reading>.recentValues() = map { it.mm }.distinct().take(RECENT_CHIPS)
+
+private const val RECENT_CHIPS = 10
+
+// ------------------------------------------------------------------- sketch
+
+enum class SketchTool { LINE, RECT }
+
+data class SketchUiState(
+    /** Null until the stored sketch has been read. */
+    val sketch: Sketch? = null,
+    /** Increments with every device reading that measured a side, so the UI can buzz. */
+    val assignedCount: Int = 0,
+    val link: LinkState = LinkState.Searching,
+    val settings: Settings = Settings(),
+    val recent: List<Int> = emptyList(),
+)
+
+class SketchViewModel(private val c: AppContainer) : ViewModel() {
+    private val assigned = MutableStateFlow(0)
+
+    val ui: StateFlow<SketchUiState> =
+        combine(c.store.sketch, assigned, c.repository.state, c.store.settings, c.store.readings) { sketch, n, link, settings, log ->
+            SketchUiState(sketch, n, link, settings, log.recentValues())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SketchUiState())
+
+    init {
+        viewModelScope.launch { c.readings(ReadingTarget.SKETCH).collect { put(it.mm, fromDevice = true) } }
+    }
+
+    /** Measures the selected side with [mm]; [fromDevice] readings also buzz. */
+    fun put(mm: Int, fromDevice: Boolean = false) {
+        viewModelScope.launch {
+            var measured = false
+            c.store.updateSketch { s ->
+                measured = s.target != null
+                s.put(mm)
+            }
+            if (measured && fromDevice) assigned.update { it + 1 }
+        }
+    }
+
+    fun draw(tool: SketchTool, a: Pt, b: Pt) {
+        val id = System.nanoTime()
+        edit { it.add(if (tool == SketchTool.LINE) Segment(id, a, b) else Rect(id, a, b)) }
+    }
+
+    fun select(ref: SideRef) = edit { it.select(ref) }
+
+    /** Deletes the shape whose side is selected. */
+    fun deleteSelected() = edit { s -> s.target?.let { s.delete(it.shapeId) } ?: s }
+
+    fun undo() = edit { it.undo() }
+
+    fun clear() = edit { it.clear() }
+
+    private fun edit(transform: (Sketch) -> Sketch) {
+        viewModelScope.launch { c.store.updateSketch(transform) }
     }
 }
 

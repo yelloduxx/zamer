@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -38,7 +39,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -85,6 +88,7 @@ fun MeasureScreen(
     onPair: () -> Unit,
     onRequestPermission: () -> Unit,
     onEnableBluetooth: () -> Unit,
+    onOpenSketch: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val formatter = remember(ui.settings.units, ui.settings.decimals) {
@@ -148,6 +152,7 @@ fun MeasureScreen(
                 formatter = formatter,
                 onSelectSlot = { if (current) vm.selectSlot(it) },
                 onRename = vm::rename,
+                onOpenSketch = onOpenSketch,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -169,6 +174,7 @@ private fun ModePage(
     formatter: Formatter,
     onSelectSlot: (Int) -> Unit,
     onRename: (Long, String) -> Unit,
+    onOpenSketch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val draft = ws.draft(mode)
@@ -182,6 +188,7 @@ private fun ModePage(
             readingCount = readingCount,
             formatter = formatter,
             onRename = onRename,
+            onOpenSketch = onOpenSketch.takeIf { mode == MeasureMode.AREA },
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
         if (mode.sides.size > 1) {
@@ -257,6 +264,8 @@ private fun Readout(
     readingCount: Int,
     formatter: Formatter,
     onRename: (Long, String) -> Unit,
+    /** Shown as a button in the card's corner when set. */
+    onOpenSketch: (() -> Unit)?,
     modifier: Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -275,92 +284,103 @@ private fun Readout(
             else -> scheme.onSurface
         },
     ) {
-        Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                val title: String
-                val quantity: Quantity?
-                val extra: String?
-                if (result != null) {
-                    title = stringResource(
-                        when (result.mode) {
-                            MeasureMode.DISTANCE -> R.string.result_distance
-                            MeasureMode.AREA -> R.string.result_area
-                            MeasureMode.VOLUME -> R.string.result_volume
-                            MeasureMode.HEIGHT -> R.string.result_height
-                        },
-                    )
-                    quantity = formatter.primary(result)
-                    extra = formatter.secondary(result)?.let {
-                        val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
-                        "$name · $it"
-                    }
-                } else if (impossible) {
-                    title = stringResource(R.string.height_impossible)
-                    quantity = null
-                    extra = null
-                } else if (draft.next != null && (lastMm != null || draft.values.any { it != null })) {
-                    title = stringResource(prompt(mode, mode.sides[draft.next]))
-                    quantity = lastMm?.let(formatter::length)
-                    extra = lastMm?.let { stringResource(R.string.last_reading) }
-                } else {
-                    title = stringResource(R.string.hero_hint_start)
-                    quantity = null
-                    extra = null
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (quantity == null) {
-                        Box(
-                            Modifier
-                                .size(112.dp)
-                                .clip(MaterialShapes.Cookie9Sided.toShape())
-                                .background(MaterialTheme.colorScheme.secondaryContainer),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                if (impossible) Icons.Rounded.ErrorOutline else Icons.Rounded.Straighten,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                        }
-                        Spacer(Modifier.height(12.dp))
-                    }
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = LocalContentColorAlpha(0.85f),
-                    )
-                    if (quantity != null) {
-                        AnimatedContent(
-                            targetState = quantity to readingCount,
-                            transitionSpec = {
-                                (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
-                                    (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))
+        Box {
+            Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    val title: String
+                    val quantity: Quantity?
+                    val extra: String?
+                    if (result != null) {
+                        title = stringResource(
+                            when (result.mode) {
+                                MeasureMode.DISTANCE -> R.string.result_distance
+                                MeasureMode.AREA -> R.string.result_area
+                                MeasureMode.VOLUME -> R.string.result_volume
+                                MeasureMode.HEIGHT -> R.string.result_height
                             },
-                            label = "reading",
-                        ) { (q, _) ->
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(
-                                    text = q.number,
-                                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp, lineHeight = 92.sp),
-                                    maxLines = 1,
-                                )
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    text = q.unit,
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    modifier = Modifier.padding(bottom = 12.dp),
+                        )
+                        quantity = formatter.primary(result)
+                        extra = formatter.secondary(result)?.let {
+                            val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
+                            "$name · $it"
+                        }
+                    } else if (impossible) {
+                        title = stringResource(R.string.height_impossible)
+                        quantity = null
+                        extra = null
+                    } else if (draft.next != null && (lastMm != null || draft.values.any { it != null })) {
+                        title = stringResource(prompt(mode, mode.sides[draft.next]))
+                        quantity = lastMm?.let(formatter::length)
+                        extra = lastMm?.let { stringResource(R.string.last_reading) }
+                    } else {
+                        title = stringResource(R.string.hero_hint_start)
+                        quantity = null
+                        extra = null
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (quantity == null) {
+                            Box(
+                                Modifier
+                                    .size(112.dp)
+                                    .clip(MaterialShapes.Cookie9Sided.toShape())
+                                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    if (impossible) Icons.Rounded.ErrorOutline else Icons.Rounded.Straighten,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                 )
                             }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = LocalContentColorAlpha(0.85f),
+                        )
+                        if (quantity != null) {
+                            AnimatedContent(
+                                targetState = quantity to readingCount,
+                                transitionSpec = {
+                                    (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
+                                        (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))
+                                },
+                                label = "reading",
+                            ) { (q, _) ->
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        text = q.number,
+                                        style = MaterialTheme.typography.displayLarge.copy(fontSize = 84.sp, lineHeight = 92.sp),
+                                        maxLines = 1,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        text = q.unit,
+                                        style = MaterialTheme.typography.headlineLarge,
+                                        modifier = Modifier.padding(bottom = 12.dp),
+                                    )
+                                }
+                            }
+                        }
+                        if (extra != null) {
+                            Text(text = extra, style = MaterialTheme.typography.titleMedium, color = LocalContentColorAlpha(0.75f))
                         }
                     }
-                    if (extra != null) {
-                        Text(text = extra, style = MaterialTheme.typography.titleMedium, color = LocalContentColorAlpha(0.75f))
-                    }
+                }
+                if (result != null && saved != null) {
+                    InlineName(saved, onRename)
                 }
             }
-            if (result != null && saved != null) {
-                InlineName(saved, onRename)
+            if (onOpenSketch != null) {
+                FilledTonalIconButton(
+                    onClick = onOpenSketch,
+                    shapes = IconButtonDefaults.shapes(),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                ) {
+                    Icon(Icons.Rounded.Draw, contentDescription = stringResource(R.string.sketch_title))
+                }
             }
         }
     }

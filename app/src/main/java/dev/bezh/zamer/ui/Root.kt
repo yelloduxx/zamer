@@ -1,6 +1,7 @@
 package dev.bezh.zamer.ui
 
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
@@ -30,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
+import dev.bezh.zamer.ReadingTarget
 import dev.bezh.zamer.data.PairedDevice
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.ui.theme.ZamerTheme
@@ -80,9 +82,20 @@ fun ZamerRoot(container: AppContainer) {
 @Composable
 private fun MainScaffold(container: AppContainer, factory: ViewModelFactory, onRepair: () -> Unit) {
     var tab by rememberSaveable { mutableStateOf(Tab.Measure) }
+    var sketchOpen by rememberSaveable { mutableStateOf(false) }
     val measureVm: MeasureViewModel = viewModel(factory = factory)
     val requestPermission = rememberPermissionRequest()
     val enableBluetooth = rememberEnableBluetooth()
+
+    if (sketchOpen) {
+        BackHandler { sketchOpen = false }
+        DisposableEffect(Unit) {
+            container.readingTarget.value = ReadingTarget.SKETCH
+            onDispose { container.readingTarget.value = ReadingTarget.MEASURE }
+        }
+        SketchScreen(viewModel(factory = factory), onBack = { sketchOpen = false }, onRepair, requestPermission, enableBluetooth)
+        return
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -109,7 +122,7 @@ private fun MainScaffold(container: AppContainer, factory: ViewModelFactory, onR
         },
     ) { padding ->
         when (tab) {
-            Tab.Measure -> MeasureScreen(measureVm, padding, onRepair, requestPermission, enableBluetooth)
+            Tab.Measure -> MeasureScreen(measureVm, padding, onRepair, requestPermission, enableBluetooth, onOpenSketch = { sketchOpen = true })
             Tab.History -> HistoryScreen(container, padding)
             Tab.Settings -> SettingsScreen(container, padding, onRepair)
         }

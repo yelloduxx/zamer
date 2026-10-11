@@ -13,6 +13,7 @@ import dev.bezh.zamer.domain.Reading
 import dev.bezh.zamer.domain.UnitSystem
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -57,7 +58,7 @@ class AppStore(private val context: Context) {
         val address = p[ADDRESS]
         val token = p[TOKEN]
         if (address != null && token != null) PairedDevice(address, p[NAME] ?: "", token) else null
-    }
+    }.distinctUntilChanged() // store.data fires on every write; a repeat here would restart the connection
 
     suspend fun savePairedDevice(d: PairedDevice) {
         store.edit {
@@ -77,7 +78,7 @@ class AppStore(private val context: Context) {
 
     // ---- settings ----
 
-    val settings: Flow<Settings> = store.data.map { it.toSettings() }
+    val settings: Flow<Settings> = store.data.map { it.toSettings() }.distinctUntilChanged()
 
     suspend fun updateSettings(transform: (Settings) -> Settings) {
         store.edit { p ->
@@ -105,7 +106,7 @@ class AppStore(private val context: Context) {
 
     // ---- history ----
 
-    val history: Flow<List<HistoryEntry>> = store.data.map { decodeHistory(it[HISTORY]) }
+    val history: Flow<List<HistoryEntry>> = store.data.map { decodeHistory(it[HISTORY]) }.distinctUntilChanged()
 
     suspend fun addHistory(entry: HistoryEntry) {
         store.edit { p ->
@@ -132,7 +133,7 @@ class AppStore(private val context: Context) {
 
     // ---- measuring ----
 
-    val workspace: Flow<Workspace> = store.data.map { decodeWorkspace(it[WORKSPACE]) }
+    val workspace: Flow<Workspace> = store.data.map { decodeWorkspace(it[WORKSPACE]) }.distinctUntilChanged()
 
     suspend fun updateWorkspace(transform: (Workspace) -> Workspace) {
         store.edit { p -> p[WORKSPACE] = json.encodeToString(transform(decodeWorkspace(p[WORKSPACE]))) }
@@ -145,7 +146,7 @@ class AppStore(private val context: Context) {
 
     // ---- readings log, newest first ----
 
-    val readings: Flow<List<Reading>> = store.data.map { decodeList<Reading>(it[READINGS]) }
+    val readings: Flow<List<Reading>> = store.data.map { decodeList<Reading>(it[READINGS]) }.distinctUntilChanged()
 
     suspend fun addReading(reading: Reading) {
         store.edit { p ->

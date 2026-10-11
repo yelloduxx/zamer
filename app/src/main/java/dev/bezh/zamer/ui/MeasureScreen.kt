@@ -94,8 +94,10 @@ fun MeasureScreen(
     }
     var naming by rememberSaveable { mutableStateOf<Long?>(null) }
     val haptics = LocalHapticFeedback.current
+    // Readings that arrived before this screen was shown (e.g. while on History) must not buzz on return.
+    val countOnEntry = remember { ui.readingCount }
     LaunchedEffect(ui.readingCount) {
-        if (ui.readingCount > 0 && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        if (ui.readingCount > countOnEntry && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
     }
 
     Column(

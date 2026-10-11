@@ -20,11 +20,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -32,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Surface
@@ -44,12 +49,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.AppContainer
@@ -69,6 +77,10 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
     val formatter = remember(settings.units, settings.decimals) { Formatter(settings.units, settings.decimals) }
     val scope = rememberCoroutineScope()
     var confirmClear by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var renaming by rememberSaveable { mutableStateOf<Long?>(null) }
+    val modeNames = MeasureMode.entries.associateWith { stringResource(it.label) }
+    val shown = entries.filter { it.matches(query, modeNames.getValue(it.mode)) }
 
     Column(Modifier.fillMaxSize().padding(contentPadding)) {
         Row(
@@ -97,11 +109,21 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
                 }
             }
         } else {
+            SearchField(query, onChange = { query = it }, Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp))
+            if (shown.isEmpty()) {
+                Text(
+                    stringResource(R.string.history_search_empty),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(entries, key = { it.id }) { entry ->
+                items(shown, key = { it.id }) { entry ->
                     val dismiss = rememberSwipeToDismissBoxState(
                         confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
@@ -121,7 +143,7 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
                                 Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.onErrorContainer)
                             }
                         },
-                    ) { HistoryCard(entry, formatter) }
+                    ) { HistoryCard(entry, formatter, onRename = { renaming = entry.id }) }
                 }
             }
         }
@@ -140,6 +162,42 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+
+    renaming?.let { id -> entries.find { it.id == id } }?.let { entry ->
+        NameDialog(
+            initial = entry.title,
+            onDismiss = { renaming = null },
+            onSave = {
+                scope.launch { container.store.renameHistory(entry.id, it) }
+                renaming = null
+            },
+        )
+    }
+}
+
+/** Matches the name the user gave, or the kind of measurement. */
+private fun HistoryEntry.matches(query: String, modeName: String): Boolean {
+    val q = query.trim()
+    return q.isEmpty() || title?.contains(q, ignoreCase = true) == true || modeName.contains(q, ignoreCase = true)
+}
+
+@Composable
+private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onChange,
+        modifier = modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = CircleShape,
+        placeholder = { Text(stringResource(R.string.history_search)) },
+        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onChange("") }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_clear)) }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+    )
 }
 
 private fun describe(entry: HistoryEntry, formatter: Formatter, context: Context): Pair<String, String> {
@@ -157,13 +215,19 @@ private fun describe(entry: HistoryEntry, formatter: Formatter, context: Context
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun HistoryCard(entry: HistoryEntry, formatter: Formatter) {
+private fun HistoryCard(entry: HistoryEntry, formatter: Formatter, onRename: () -> Unit) {
     val context = LocalContext.current
     val (total, sides) = describe(entry, formatter, context)
     val whenText = DateUtils.getRelativeDateTimeString(
         context, entry.timestamp, DateUtils.MINUTE_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, 0,
     ).toString()
-    Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
+    val value = if (entry.mode == MeasureMode.DISTANCE) total else "$total  ($sides)"
+    Surface(
+        onClick = onRename,
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Row(Modifier.padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(52.dp).clip(MaterialShapes.Cookie6Sided.toShape()).background(MaterialTheme.colorScheme.primaryContainer),
@@ -173,13 +237,18 @@ private fun HistoryCard(entry: HistoryEntry, formatter: Formatter) {
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(total, style = MaterialTheme.typography.headlineSmall)
+                if (entry.title != null) {
+                    Text(entry.title, style = MaterialTheme.typography.titleLarge)
+                    Text(total, style = MaterialTheme.typography.titleMedium)
+                } else {
+                    Text(total, style = MaterialTheme.typography.headlineSmall)
+                }
                 if (entry.mode != MeasureMode.DISTANCE) {
                     Text(sides, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(whenText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = { share(context, if (entry.mode == MeasureMode.DISTANCE) total else "$total  ($sides)") }) {
+            IconButton(onClick = { share(context, listOfNotNull(entry.title, value).joinToString(": ")) }) {
                 Icon(Icons.Rounded.IosShare, stringResource(R.string.action_share))
             }
         }

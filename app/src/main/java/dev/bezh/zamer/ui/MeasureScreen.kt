@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -47,7 +48,10 @@ import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,10 +61,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
+import dev.bezh.zamer.data.HistoryEntry
 import dev.bezh.zamer.domain.Draft
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.MeasureMode
@@ -82,6 +88,7 @@ fun MeasureScreen(
     val formatter = remember(ui.settings.units, ui.settings.decimals) {
         Formatter(ui.settings.units, ui.settings.decimals)
     }
+    var naming by rememberSaveable { mutableStateOf<Long?>(null) }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(ui.readingCount) {
         if (ui.readingCount > 0 && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -108,14 +115,27 @@ fun MeasureScreen(
             ws = ws,
             lastMm = ui.lastMm,
             readingCount = ui.readingCount,
+            saved = ui.saved,
             formatter = formatter,
             onSelectSlot = vm::selectSlot,
+            onName = { naming = it.id },
             modifier = Modifier.weight(1f),
         )
         if (ui.recent.isNotEmpty()) {
             RecentReadings(ui.recent, formatter) { vm.put(it) }
         }
         ActionRow(canUndo = ws.draft().values.any { it != null }, onUndo = vm::undo, onReset = vm::reset)
+    }
+
+    naming?.let(ui.saved::get)?.let { entry ->
+        NameDialog(
+            initial = entry.title,
+            onDismiss = { naming = null },
+            onSave = {
+                vm.rename(entry.id, it)
+                naming = null
+            },
+        )
     }
 }
 
@@ -126,13 +146,25 @@ private fun ModePage(
     ws: Workspace,
     lastMm: Int?,
     readingCount: Int,
+    saved: Map<Long, HistoryEntry>,
     formatter: Formatter,
     onSelectSlot: (Int) -> Unit,
+    onName: (HistoryEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val draft = ws.draft(mode)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Readout(mode, draft, ws.result(mode), lastMm, readingCount, formatter, Modifier.weight(1f).fillMaxWidth())
+        Readout(
+            mode = mode,
+            draft = draft,
+            result = ws.result(mode),
+            saved = draft.savedId?.let(saved::get),
+            lastMm = lastMm,
+            readingCount = readingCount,
+            formatter = formatter,
+            onName = onName,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
         if (mode.sides.size > 1) {
             SlotRow(mode, draft, formatter, onSelectSlot)
         }
@@ -201,9 +233,11 @@ private fun Readout(
     mode: MeasureMode,
     draft: Draft,
     result: MeasureResult?,
+    saved: HistoryEntry?,
     lastMm: Int?,
     readingCount: Int,
     formatter: Formatter,
+    onName: (HistoryEntry) -> Unit,
     modifier: Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -302,6 +336,14 @@ private fun Readout(
                 }
                 if (extra != null) {
                     Text(text = extra, style = MaterialTheme.typography.titleMedium, color = LocalContentColorAlpha(0.75f))
+                }
+                if (result != null && saved != null) {
+                    Spacer(Modifier.height(6.dp))
+                    FilledTonalButton(onClick = { onName(saved) }, shapes = ButtonDefaults.shapes()) {
+                        Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(saved.title ?: stringResource(R.string.name_it), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }

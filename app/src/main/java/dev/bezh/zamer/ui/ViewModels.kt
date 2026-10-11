@@ -42,6 +42,8 @@ data class MeasureUiState(
     val settings: Settings = Settings(),
     /** Recent distinct values from the readings log, newest first. */
     val recent: List<Int> = emptyList(),
+    /** The history entries that completed drafts were saved as, by id; gone once deleted from history. */
+    val saved: Map<Long, HistoryEntry> = emptyMap(),
 )
 
 private data class Session(val lastMm: Int? = null, val readingCount: Int = 0)
@@ -49,9 +51,18 @@ private data class Session(val lastMm: Int? = null, val readingCount: Int = 0)
 class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     private val session = MutableStateFlow(Session())
 
+    private val stored = combine(c.store.workspace, c.store.history, c.store.readings) { ws, history, log ->
+        val ids = ws.drafts.values.mapNotNullTo(HashSet()) { it.savedId }
+        MeasureUiState(
+            workspace = ws,
+            recent = log.map { it.mm }.distinct().take(RECENT_CHIPS),
+            saved = history.filter { it.id in ids }.associateBy { it.id },
+        )
+    }
+
     val ui: StateFlow<MeasureUiState> =
-        combine(c.store.workspace, session, c.repository.state, c.store.settings, c.store.readings) { ws, s, link, settings, log ->
-            MeasureUiState(ws, s.lastMm, s.readingCount, link, settings, log.map { it.mm }.distinct().take(RECENT_CHIPS))
+        combine(stored, session, c.repository.state, c.store.settings) { st, s, link, settings ->
+            st.copy(lastMm = s.lastMm, readingCount = s.readingCount, link = link, settings = settings)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasureUiState())
 
     init {
@@ -71,6 +82,10 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
             }
             completed?.let { c.store.addHistory(it) }
         }
+    }
+
+    fun rename(entryId: Long, title: String) {
+        viewModelScope.launch { c.store.renameHistory(entryId, title) }
     }
 
     fun setMode(mode: MeasureMode) {

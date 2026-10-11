@@ -33,6 +33,9 @@
     <string name="extra_perimeter">Perimeter</string>
     <string name="extra_floor">Floor area</string>
     <string name="last_reading">Last reading</string>
+    <string name="name_it">Name it</string>
+    <string name="name_title">Name this result</string>
+    <string name="name_hint">e.g. Kitchen floor</string>
     <string name="recent_readings">Recent readings</string>
 
     <string name="action_undo">Undo</string>
@@ -41,6 +44,8 @@
     <string name="action_share">Share</string>
     <string name="action_delete">Delete</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_clear">Clear</string>
     <string name="copied">Copied</string>
 
     <string name="status_connected">Connected</string>
@@ -56,6 +61,8 @@
 
     <string name="history_title">History</string>
     <string name="history_empty">Your measurements will appear here</string>
+    <string name="history_search">Search by name</string>
+    <string name="history_search_empty">Nothing found</string>
     <string name="history_clear">Clear all</string>
     <string name="history_clear_confirm">Delete all saved measurements?</string>
     <string name="today">Today</string>

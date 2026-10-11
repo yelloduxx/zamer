@@ -40,6 +40,8 @@ data class HistoryEntry(
     val timestamp: Long,
     val mode: MeasureMode,
     val valuesMm: List<Int>,
+    /** What the user says was measured, e.g. "Kitchen floor". */
+    val title: String? = null,
 )
 
 class AppStore(private val context: Context) {
@@ -109,6 +111,14 @@ class AppStore(private val context: Context) {
         store.edit { p ->
             val list = listOf(entry) + decodeHistory(p[HISTORY])
             p[HISTORY] = json.encodeToString(list.take(MAX_HISTORY))
+        }
+    }
+
+    /** A blank [title] removes the name. */
+    suspend fun renameHistory(id: Long, title: String) {
+        val name = title.trim().ifEmpty { null }
+        store.edit { p ->
+            p[HISTORY] = json.encodeToString(decodeHistory(p[HISTORY]).map { if (it.id == id) it.copy(title = name) else it })
         }
     }
 

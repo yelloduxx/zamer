@@ -5,6 +5,7 @@ import dev.bezh.zamer.ble.AuthLink
 import dev.bezh.zamer.ble.MiAuth
 import dev.bezh.zamer.ble.MiCrypto
 import dev.bezh.zamer.ble.MsgId
+import dev.bezh.zamer.ble.PairingToken
 import dev.bezh.zamer.ble.SessionKeys
 import dev.bezh.zamer.ble.Attribute
 import dev.bezh.zamer.ble.DeviceAttr
@@ -153,7 +154,7 @@ class MiProtocolTest {
 
     @Test
     fun loginMatchesRecordedSession() = runBlocking {
-        val token = "caba10d7494e3f63482c5266".hexToBytes()
+        val token = PairingToken.fromHex("caba10d7494e3f63482c5266")!!
         val appRandom = "70fdf4d78fed636cafa838ea1c3feda8".hexToBytes()
         val fixedRandom = object : SecureRandom() {
             override fun nextBytes(bytes: ByteArray) {
@@ -182,12 +183,19 @@ class MiProtocolTest {
     }
 
     @Test
+    fun storedTokenHexReadsBackUnchanged() {
+        val stored = "caba10d7494e3f63482c5266"
+        assertEquals(stored, PairingToken.fromHex(stored)!!.toHex())
+        assertNull(PairingToken.fromHex("caba10d7494e3f63482c52"))
+        assertNull(PairingToken.fromHex("not hex at all, not hex"))
+    }
+
+    @Test
     fun registerRoundTripAgainstSimulatedDevice() = runBlocking {
         val device = SimulatedDevice()
         val token = MiAuth(device).register()
-        assertEquals(12, token.size)
         assertNotNull(device.derivedToken)
-        assertArrayEquals(device.derivedToken, token)
+        assertArrayEquals(device.derivedToken, token.bytes)
         assertEquals("00626c742e302e7a616d65723074657374303030", device.receivedDeviceId?.toHex())
     }
 

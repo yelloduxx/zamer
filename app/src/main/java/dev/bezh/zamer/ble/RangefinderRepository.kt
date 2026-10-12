@@ -117,7 +117,10 @@ class RangefinderRepository(
     }
 
     private suspend fun connectionLoop(paired: PairedDevice) {
-        val token = paired.tokenHex.hexToBytes()
+        val token = PairingToken.fromHex(paired.tokenHex) ?: run {
+            _state.value = LinkState.NeedsRepair
+            return
+        }
         var failures = 0
         while (true) {
             // Spelled out rather than hasPermissions(): lint only credits a checkSelfPermission call in the same method.

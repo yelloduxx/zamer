@@ -16,6 +16,19 @@ open class MiAuthException(message: String) : Exception(message)
 
 class PairingRejectedException(message: String) : MiAuthException(message)
 
+class PairingToken private constructor(internal val bytes: ByteArray) {
+    fun toHex(): String = bytes.toHex()
+
+    companion object {
+        const val SIZE = 12
+
+        fun fromHex(hex: String): PairingToken? =
+            runCatching { hex.hexToBytes() }.getOrNull()?.takeIf { it.size == SIZE }?.let(::PairingToken)
+
+        internal fun of(derived: ByteArray) = PairingToken(derived.copyOfRange(0, SIZE))
+    }
+}
+
 class SessionKeys(
     val devKey: ByteArray,
     val appKey: ByteArray,
@@ -54,7 +67,7 @@ class MiAuth(
     private val random: SecureRandom = SecureRandom(),
     private val stepTimeoutMs: Long = 8_000,
 ) {
-    suspend fun register(): ByteArray {
+    suspend fun register(): PairingToken {
         val own = MiCrypto.generateKeyPair()
 
         link.writeUpnp(CMD_GET_INFO)
@@ -68,7 +81,7 @@ class MiAuth(
         if (remoteKey.size != 64) throw MiAuthException("Unexpected public key length ${remoteKey.size}")
 
         val derived = MiCrypto.hkdfSha256(MiCrypto.ecdh(own, remoteKey), null, "mible-setup-info".toByteArray(), 64)
-        val token = derived.copyOfRange(0, 12)
+        val token = PairingToken.of(derived)
         val a = derived.copyOfRange(28, 44)
         val deviceIdCt = MiCrypto.ccmEncrypt(a, ByteArray(12) { (16 + it).toByte() }, deviceId, "devID".toByteArray())
         sendParcel(HDR_SEND_DID, deviceIdCt)
@@ -79,7 +92,7 @@ class MiAuth(
         return token
     }
 
-    suspend fun login(token: ByteArray): SessionKeys {
+    suspend fun login(token: PairingToken): SessionKeys {
         val appRandom = ByteArray(16).also(random::nextBytes)
 
         link.writeUpnp(CMD_LOGIN)
@@ -97,7 +110,7 @@ class MiAuth(
 
         val salt = appRandom + deviceRandom
         val saltInv = deviceRandom + appRandom
-        val d = MiCrypto.hkdfSha256(token, salt, "mible-login-info".toByteArray(), 64)
+        val d = MiCrypto.hkdfSha256(token.bytes, salt, "mible-login-info".toByteArray(), 64)
         val keys = SessionKeys(
             devKey = d.copyOfRange(0, 16),
             appKey = d.copyOfRange(16, 32),

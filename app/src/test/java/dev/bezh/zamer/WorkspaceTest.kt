@@ -117,6 +117,22 @@ class WorkspaceTest {
     }
 
     @Test
+    fun workspaceStoredByTheCurrentVersionDecodesAndEncodesUnchanged() {
+        val stored = """{"mode":"HEIGHT","drafts":{""" +
+            """"DISTANCE":{"values":[1234],"next":null,"savedId":42},""" +
+            """"AREA":{"values":[2000,null],"next":1},""" +
+            """"VOLUME":{"values":[1000,2000,3000],"next":1},""" +
+            """"HEIGHT":{"values":[5000,3000],"next":null}}}"""
+        val ws = StoreJson.decodeFromString<Workspace>(stored)
+        assertEquals(MeasureMode.HEIGHT, ws.mode)
+        assertEquals(Draft(listOf(1234), next = null, savedId = 42), ws.draft(MeasureMode.DISTANCE))
+        assertEquals(Draft(listOf(2000, null), next = 1), ws.draft(MeasureMode.AREA))
+        assertEquals(Draft(listOf(1000, 2000, 3000), next = 1), ws.draft(MeasureMode.VOLUME))
+        assertEquals(Draft(listOf(5000, 3000), next = null), ws.draft(MeasureMode.HEIGHT))
+        assertEquals(stored, StoreJson.encodeToString(ws))
+    }
+
+    @Test
     fun storedDraftWithTheWrongSizeReadsAsEmpty() {
         val ws = Workspace(mode = MeasureMode.AREA, drafts = mapOf(MeasureMode.AREA to Draft(listOf(1, 2, 3), next = 0)))
         assertEquals(Draft.empty(MeasureMode.AREA), ws.draft())

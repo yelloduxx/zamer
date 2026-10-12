@@ -189,39 +189,54 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
     }
 }
 
+private sealed interface Language {
+    data object System : Language
+
+    data class Locale(val tag: String, val endonym: String) : Language
+}
+
 private val Languages = listOf(
-    null to null,
-    "en" to "English",
-    "ru" to "Русский",
-    "es" to "Español",
-    "de" to "Deutsch",
-    "zh-CN" to "简体中文",
+    Language.System,
+    Language.Locale("en", "English"),
+    Language.Locale("ru", "Русский"),
+    Language.Locale("es", "Español"),
+    Language.Locale("de", "Deutsch"),
+    Language.Locale("zh-CN", "简体中文"),
 )
+
+@Composable
+private fun Language.label() = when (this) {
+    Language.System -> stringResource(R.string.language_system)
+    is Language.Locale -> endonym
+}
 
 /** Android stores the per-app language and restarts the screen in the new language. */
 @Composable
 internal fun LanguageCard() {
     var open by remember { mutableStateOf(false) }
     val current = AppCompatDelegate.getApplicationLocales()[0]?.language
-    val (_, name) = Languages.firstOrNull { (tag, _) -> tag != null && tag.substringBefore('-') == current } ?: Languages.first()
+    val selected = Languages.firstOrNull { it is Language.Locale && it.tag.substringBefore('-') == current } ?: Language.System
     SettingsCard(stringResource(R.string.settings_language), icon = { Icon(Icons.Rounded.Translate, null, Modifier.padding(end = 6.dp).size(18.dp)) }) {
         Box {
             Row(
                 Modifier.fillMaxWidth().height(56.dp).clickable { open = true },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(name ?: stringResource(R.string.language_system), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Text(selected.label(), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Icon(Icons.Rounded.ExpandMore, contentDescription = null)
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                Languages.forEach { (tag, label) ->
+                Languages.forEach { language ->
                     DropdownMenuItem(
-                        text = { Text(label ?: stringResource(R.string.language_system)) },
-                        trailingIcon = { if (label == name) Icon(Icons.Rounded.Check, null) },
+                        text = { Text(language.label()) },
+                        trailingIcon = { if (language == selected) Icon(Icons.Rounded.Check, null) },
                         onClick = {
                             open = false
                             AppCompatDelegate.setApplicationLocales(
-                                if (tag == null) LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(tag),
+                                when (language) {
+                                    Language.System -> LocaleListCompat.getEmptyLocaleList()
+                                    is Language.Locale -> LocaleListCompat.forLanguageTags(language.tag)
+                                },
                             )
                         },
                     )

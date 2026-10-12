@@ -24,24 +24,54 @@ enum class UnitSystem { METRIC, IMPERIAL }
 @Serializable
 data class Reading(val mm: Int, val at: Long)
 
-@ConsistentCopyVisibility
-data class MeasureResult private constructor(
-    val mode: MeasureMode,
-    val valuesMm: List<Int>,
-    val primary: Double,
-    val secondary: Double?,
-) {
+sealed interface MeasureResult {
+    val mode: MeasureMode
+    val valuesMm: List<Int>
+
+    data class Distance(val lengthMm: Int) : MeasureResult {
+        override val mode get() = MeasureMode.DISTANCE
+        override val valuesMm get() = listOf(lengthMm)
+        val metres get() = lengthMm / 1000.0
+    }
+
+    data class Area(val lengthMm: Int, val widthMm: Int) : MeasureResult {
+        override val mode get() = MeasureMode.AREA
+        override val valuesMm get() = listOf(lengthMm, widthMm)
+        val squareMetres get() = lengthMm / 1000.0 * (widthMm / 1000.0)
+        val perimeterMetres get() = 2 * (lengthMm / 1000.0 + widthMm / 1000.0)
+    }
+
+    data class Volume(val lengthMm: Int, val widthMm: Int, val heightMm: Int) : MeasureResult {
+        override val mode get() = MeasureMode.VOLUME
+        override val valuesMm get() = listOf(lengthMm, widthMm, heightMm)
+        val cubicMetres get() = lengthMm / 1000.0 * (widthMm / 1000.0) * (heightMm / 1000.0)
+        val floorSquareMetres get() = lengthMm / 1000.0 * (widthMm / 1000.0)
+    }
+
+    @ConsistentCopyVisibility
+    data class Height private constructor(val baseMm: Int, val hypotenuseMm: Int) : MeasureResult {
+        override val mode get() = MeasureMode.HEIGHT
+        override val valuesMm get() = listOf(baseMm, hypotenuseMm)
+        val metres: Double
+            get() {
+                val base = baseMm / 1000.0
+                val hypotenuse = hypotenuseMm / 1000.0
+                return sqrt(hypotenuse * hypotenuse - base * base)
+            }
+
+        companion object {
+            fun of(baseMm: Int, hypotenuseMm: Int): Height? = if (hypotenuseMm > baseMm) Height(baseMm, hypotenuseMm) else null
+        }
+    }
+
     companion object {
         fun of(mode: MeasureMode, valuesMm: List<Int>): MeasureResult? {
             if (valuesMm.size != mode.sides.size) return null
-            val m = valuesMm.map { it / 1000.0 }
             return when (mode) {
-                MeasureMode.DISTANCE -> MeasureResult(mode, valuesMm, m[0], null)
-                MeasureMode.AREA -> MeasureResult(mode, valuesMm, m[0] * m[1], 2 * (m[0] + m[1]))
-                MeasureMode.VOLUME -> MeasureResult(mode, valuesMm, m[0] * m[1] * m[2], m[0] * m[1])
-                MeasureMode.HEIGHT ->
-                    if (valuesMm[1] <= valuesMm[0]) null
-                    else MeasureResult(mode, valuesMm, sqrt(m[1] * m[1] - m[0] * m[0]), null)
+                MeasureMode.DISTANCE -> Distance(valuesMm[0])
+                MeasureMode.AREA -> Area(valuesMm[0], valuesMm[1])
+                MeasureMode.VOLUME -> Volume(valuesMm[0], valuesMm[1], valuesMm[2])
+                MeasureMode.HEIGHT -> Height.of(valuesMm[0], valuesMm[1])
             }
         }
     }
@@ -83,18 +113,11 @@ class Formatter(
         UnitSystem.IMPERIAL -> Quantity(fmt(cubicMetres * ftPerM * ftPerM * ftPerM, 2), "ft³")
     }
 
-    fun primary(r: MeasureResult): Quantity = when (r.mode) {
-        MeasureMode.DISTANCE, MeasureMode.HEIGHT -> lengthFromMetres(r.primary)
-        MeasureMode.AREA -> area(r.primary)
-        MeasureMode.VOLUME -> volume(r.primary)
-    }
-
-    fun secondary(r: MeasureResult): Quantity? = r.secondary?.let {
-        when (r.mode) {
-            MeasureMode.AREA -> lengthFromMetres(it)
-            MeasureMode.VOLUME -> area(it)
-            MeasureMode.DISTANCE, MeasureMode.HEIGHT -> null
-        }
+    fun primary(r: MeasureResult): Quantity = when (r) {
+        is MeasureResult.Distance -> lengthFromMetres(r.metres)
+        is MeasureResult.Area -> area(r.squareMetres)
+        is MeasureResult.Volume -> volume(r.cubicMetres)
+        is MeasureResult.Height -> lengthFromMetres(r.metres)
     }
 
     private fun fmt(v: Double, digits: Int) = String.format(locale, "%.${digits}f", v)

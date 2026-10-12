@@ -3,6 +3,7 @@ package dev.bezh.zamer
 import dev.bezh.zamer.data.StoreJson
 import dev.bezh.zamer.domain.Draft
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.MeasureResult
 import dev.bezh.zamer.domain.Workspace
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -92,7 +93,7 @@ class WorkspaceTest {
     fun validHeightIsSaved() {
         val (ws, saved) = Workspace(mode = MeasureMode.HEIGHT).putAll(3000, 5000)
         assertEquals(listOf(101L), saved)
-        assertEquals(4.0, ws.result()!!.primary, 1e-9)
+        assertEquals(4.0, (ws.result() as MeasureResult.Height).metres, 1e-9)
     }
 
     @Test

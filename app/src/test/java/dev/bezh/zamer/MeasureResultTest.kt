@@ -15,9 +15,9 @@ class MeasureResultTest {
 
     @Test
     fun heightIsTheMissingLegOfTheTriangle() {
-        val r = MeasureResult.of(MeasureMode.HEIGHT, listOf(3000, 5000))!!
-        assertEquals(4.0, r.primary, 1e-9)
-        assertNull(r.secondary)
+        val r = MeasureResult.of(MeasureMode.HEIGHT, listOf(3000, 5000)) as MeasureResult.Height
+        assertEquals(4.0, r.metres, 1e-9)
+        assertEquals(listOf(3000, 5000), r.valuesMm)
         assertEquals(Quantity("4.000", "m"), metric.primary(r))
     }
 
@@ -28,14 +28,16 @@ class MeasureResultTest {
     }
 
     @Test
-    fun areaAndVolumeKeepTheirSecondaryValues() {
-        val area = MeasureResult.of(MeasureMode.AREA, listOf(2000, 3500))!!
-        assertEquals(7.0, area.primary, 1e-9)
-        assertEquals(11.0, area.secondary!!, 1e-9)
+    fun areaHasAPerimeterAndVolumeAFloor() {
+        val area = MeasureResult.of(MeasureMode.AREA, listOf(2000, 3500)) as MeasureResult.Area
+        assertEquals(7.0, area.squareMetres, 1e-9)
+        assertEquals(11.0, area.perimeterMetres, 1e-9)
+        assertEquals(Quantity("7.00", "m²"), metric.primary(area))
 
-        val volume = MeasureResult.of(MeasureMode.VOLUME, listOf(2000, 3000, 2500))!!
-        assertEquals(15.0, volume.primary, 1e-9)
-        assertEquals(6.0, volume.secondary!!, 1e-9)
+        val volume = MeasureResult.of(MeasureMode.VOLUME, listOf(2000, 3000, 2500)) as MeasureResult.Volume
+        assertEquals(15.0, volume.cubicMetres, 1e-9)
+        assertEquals(6.0, volume.floorSquareMetres, 1e-9)
+        assertEquals(MeasureMode.VOLUME, volume.mode)
     }
 
     @Test

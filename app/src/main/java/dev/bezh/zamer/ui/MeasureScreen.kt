@@ -282,9 +282,11 @@ private fun Readout(
                             },
                         )
                         quantity = formatter.primary(result)
-                        extra = formatter.secondary(result)?.let {
-                            val name = stringResource(if (result.mode == MeasureMode.AREA) R.string.extra_perimeter else R.string.extra_floor)
-                            "$name · $it"
+                        extra = when (result) {
+                            is MeasureResult.Area ->
+                                "${stringResource(R.string.extra_perimeter)} · ${formatter.lengthFromMetres(result.perimeterMetres)}"
+                            is MeasureResult.Volume -> "${stringResource(R.string.extra_floor)} · ${formatter.area(result.floorSquareMetres)}"
+                            is MeasureResult.Distance, is MeasureResult.Height -> null
                         }
                     } else if (impossible) {
                         title = stringResource(R.string.height_impossible)

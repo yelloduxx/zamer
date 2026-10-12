@@ -14,7 +14,17 @@ android {
         minSdk = 31
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
+    }
+
+    // The key lives outside the repo; without it (as on CI) the release build stays unsigned.
+    val releaseKey = providers.gradleProperty("ZAMER_STORE_FILE").orNull?.let { store ->
+        signingConfigs.create("release") {
+            storeFile = file(store)
+            storePassword = providers.gradleProperty("ZAMER_STORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("ZAMER_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("ZAMER_KEY_PASSWORD").get()
+        }
     }
 
     buildTypes {
@@ -22,6 +32,15 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = releaseKey
+        }
+        // Release code after R8, installable next to the debug app and debuggable so a copy of its data can be loaded.
+        create("check") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".check"
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
         }
     }
     compileOptions {

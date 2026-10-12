@@ -26,13 +26,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34])
 class SketchExportTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val measurer = TextMeasurer(createFontFamilyResolver(context), Density(1f), LayoutDirection.Ltr)
@@ -48,8 +46,8 @@ class SketchExportTest {
         val room = Sketch().add(Rect(1, Pt(0, 0), Pt(4000, 3000))).put(4000).put(3000).add(Segment(2, Pt(4000, 0), Pt(4300, 0))).put(300)
         val image = render(SketchDoc(1, 1, "Kitchen", sketch = room), caption = "Kitchen · 12.00 m²")!!
         save(image, "export-plan")
-        val margin = 56 * 4096 / 640f
-        assertEquals(4096, image.width)
+        val margin = PlanMargin.value * MAX_EXPORT_PX / EXPORT_LONG_SIDE_DP
+        assertEquals(MAX_EXPORT_PX, image.width)
         assertEquals((3000 * (4096 - 2 * margin) / 4300 + 2 * margin).toInt(), image.height)
         assertEquals("paper behind the drawing", Color.WHITE, image.getPixel(10, 10))
         assertTrue("the left wall is drawn dark", Color.red(image.getPixel(margin.toInt() + 1, image.height / 2 + 300)) < 100)

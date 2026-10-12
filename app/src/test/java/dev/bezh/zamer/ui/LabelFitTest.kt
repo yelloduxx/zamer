@@ -79,7 +79,6 @@ import org.robolectric.annotation.GraphicsMode
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34])
 abstract class LabelFitTest(private val locale: String) {
     // Robolectric reads the app's manifest, which never lists the compose test host; register it here
     // so ui-test-manifest need not leak into the debug APK.

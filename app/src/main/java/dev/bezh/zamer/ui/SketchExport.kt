@@ -17,11 +17,11 @@ import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.SketchDoc
 import kotlin.math.roundToInt
 
-private const val MAX_EXPORT_PX = 4096
+internal const val MAX_EXPORT_PX = 4096
 
-private const val EXPORT_LONG_SIDE_DP = 640f
+internal const val EXPORT_LONG_SIDE_DP = 640f
 
-private val PlanMargin = 56.dp
+internal val PlanMargin = 56.dp
 
 private val Paper = Color.White
 private val PaperColors = SketchColors(

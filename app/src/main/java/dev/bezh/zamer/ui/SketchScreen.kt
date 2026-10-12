@@ -76,6 +76,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -760,8 +761,8 @@ internal fun SketchCanvas(
                         if (state == Touch.Viewing || pressed > 1) {
                             state = Touch.Viewing
                             gesture = null
-                            if (event.changes.all { it.pressed == it.previousPressed }) {
-                                val centroid = event.calculateCentroid()
+                            val centroid = event.calculateCentroid()
+                            if (centroid.isSpecified) {
                                 val pan = event.calculatePan()
                                 val next = (pxPerUnit * event.calculateZoom()).coerceIn(zoomRange())
                                 val k = next / pxPerUnit

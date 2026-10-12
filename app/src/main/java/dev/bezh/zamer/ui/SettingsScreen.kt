@@ -1,5 +1,6 @@
 package dev.bezh.zamer.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
@@ -52,6 +54,7 @@ import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
 import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.ble.ReferenceEdge
+import dev.bezh.zamer.ble.SettingWrite
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.data.ThemeMode
 import dev.bezh.zamer.domain.UnitSystem
@@ -65,6 +68,7 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
     val link by container.repository.state.collectAsStateWithLifecycle()
     val device by container.repository.deviceSettings.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var confirmForget by remember { mutableStateOf(false) }
     fun update(transform: (Settings) -> Settings) = scope.launch { container.store.updateSettings(transform) }
 
@@ -106,7 +110,14 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
                 options = listOf(R.string.reference_rear to ReferenceEdge.REAR, R.string.reference_front to ReferenceEdge.FRONT),
                 selected = device.reference,
                 enabled = connected && device.reference != null,
-                onSelect = { e -> scope.launch { container.repository.setReference(e) } },
+                onSelect = { e ->
+                    scope.launch {
+                        when (container.repository.setReference(e)) {
+                            SettingWrite.WRITTEN, SettingWrite.NOT_CONNECTED -> Unit
+                            SettingWrite.FAILED -> Toast.makeText(context, R.string.reference_change_failed, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
             )
             Text(stringResource(R.string.settings_units), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Segmented(

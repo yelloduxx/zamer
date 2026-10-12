@@ -125,6 +125,7 @@
     <string name="reference_front">前基准</string>
     <string name="device_settings_hint">测量基准会直接在测距仪上更改。单位会同时在应用和测距仪上更改。</string>
     <string name="device_settings_offline">测距仪连接后才能更改测量基准。单位会在测距仪连接时同步过去。</string>
+    <string name="reference_change_failed">无法更改测量基准</string>
     <string name="settings_language">语言</string>
     <string name="language_system">跟随系统</string>
 </resources>

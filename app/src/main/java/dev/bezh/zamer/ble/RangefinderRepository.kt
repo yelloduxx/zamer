@@ -42,6 +42,13 @@ sealed interface PairOutcome {
     data class Failure(val message: String) : PairOutcome
 }
 
+enum class SettingWrite {
+    /** Handed to Bluetooth. The device confirms by reporting the new value. */
+    WRITTEN,
+    NOT_CONNECTED,
+    FAILED,
+}
+
 class RangefinderRepository(
     private val context: Context,
     private val store: AppStore,
@@ -193,14 +200,23 @@ class RangefinderRepository(
         if (shown != units.deviceUnit) setUnits(units)
     }
 
-    suspend fun setReference(edge: ReferenceEdge): Boolean = sendSetting(DeviceAttr.REFERENCE_ID, edge.ordinal)
+    suspend fun setReference(edge: ReferenceEdge): SettingWrite = sendSetting(DeviceAttr.REFERENCE_ID, edge.ordinal)
 
-    suspend fun setUnits(units: UnitSystem): Boolean = sendSetting(DeviceAttr.UNIT_ID, units.deviceUnit.ordinal)
+    suspend fun setUnits(units: UnitSystem): SettingWrite = sendSetting(DeviceAttr.UNIT_ID, units.deviceUnit.ordinal)
 
-    private suspend fun sendSetting(id: Int, value: Int): Boolean {
-        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return false
-        val s = session ?: return false
-        return runCatching { s.set(id, value) }.isSuccess
+    private suspend fun sendSetting(id: Int, value: Int): SettingWrite {
+        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return SettingWrite.NOT_CONNECTED
+        }
+        val s = session ?: return SettingWrite.NOT_CONNECTED
+        return try {
+            s.set(id, value)
+            SettingWrite.WRITTEN
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SettingWrite.FAILED
+        }
     }
 
     private class Session(private val link: GattLink, keys: SessionKeys) {

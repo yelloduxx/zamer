@@ -125,6 +125,7 @@
     <string name="reference_front">Borde frontal</string>
     <string name="device_settings_hint">El borde de referencia se cambia directamente en el medidor. Las unidades cambian en la app y en el medidor.</string>
     <string name="device_settings_offline">El borde de referencia se puede cambiar mientras el medidor está conectado. Las unidades se enviarán al medidor cuando se conecte.</string>
+    <string name="reference_change_failed">No se pudo cambiar el borde de referencia</string>
     <string name="settings_language">Idioma</string>
     <string name="language_system">Idioma del sistema</string>
 </resources>

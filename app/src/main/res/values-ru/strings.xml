@@ -135,6 +135,7 @@
     <string name="reference_front">Передней грани</string>
     <string name="device_settings_hint">Точка отсчёта меняется на самом дальномере. Единицы меняются и в приложении, и на дальномере.</string>
     <string name="device_settings_offline">Точку отсчёта можно сменить, когда дальномер подключён. Единицы на дальномере обновятся при подключении.</string>
+    <string name="reference_change_failed">Не удалось сменить точку отсчёта</string>
     <string name="settings_language">Язык</string>
     <string name="language_system">Как в системе</string>
 </resources>

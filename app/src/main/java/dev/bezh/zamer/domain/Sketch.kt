@@ -32,6 +32,9 @@ sealed interface SketchShape {
     /** Every end or corner, where other shapes can join this one. */
     val points: List<Pt>
 
+    /** Where the shape sits, for framing it in view and for dropping it after a drag. */
+    val extent: List<Pt> get() = points
+
     /** The same shape with every point passed through [f]. */
     fun mapPoints(f: (Pt) -> Pt): SketchShape
 
@@ -106,6 +109,19 @@ data class Rect(
         else copy(b = Pt(b.x, a.y + mm * (b.y - a.y).sign), heightMm = mm)
 }
 
+/** A line of [text] centred [at] a spot; it has no sides to measure and nothing joins it. */
+@Serializable
+@SerialName("note")
+data class Note(override val id: Long, val at: Pt, val text: String) : SketchShape {
+    override val sides get() = emptyList<Int?>()
+    override val edges get() = emptyList<Edge>()
+    override val points get() = emptyList<Pt>()
+    override val extent get() = listOf(at)
+    override fun mapPoints(f: (Pt) -> Pt) = copy(at = f(at))
+    override fun measured(side: Int, mm: Int) = this
+    override fun labelled(side: Int, mm: Int) = this
+}
+
 /** A horizontal or, if [vertical], vertical line through [through] that a drawing finger lined up with. */
 data class Guide(val through: Pt, val vertical: Boolean)
 
@@ -133,10 +149,18 @@ data class Sketch(
         require(target == null || shapes.has(target)) { "the target is a side of a shape in the sketch" }
     }
 
-    /** The new shape's first side waits for a reading. A shape with no length or no area is ignored. */
+    /**
+     * The new shape's first side waits for a reading; a note leaves the target as it was. A shape with no length or no
+     * area, or a note with no text, is ignored.
+     */
     fun add(shape: SketchShape): Sketch =
-        if (shape.edges.any { it.a == it.b } || shapes.any { it.id == shape.id }) this
-        else changed(shapes + shape, SideRef(shape.id, 0))
+        if (shape.edges.any { it.a == it.b } || (shape is Note && shape.text.isBlank()) || shapes.any { it.id == shape.id }) this
+        else changed(shapes + shape, if (shape.sides.isEmpty()) target else SideRef(shape.id, 0))
+
+    /** Note [id] reading [text] instead; blank text changes nothing. */
+    fun write(id: Long, text: String): Sketch =
+        if (text.isBlank()) this
+        else changed(shapes.map { if (it.id == id && it is Note) it.copy(text = text.trim()) else it }, target)
 
     /**
      * Measures the target with [mm] and, [toScale], redraws it that long with the shapes joined to it following; then
@@ -224,19 +248,19 @@ data class Sketch(
     /**
      * The shift that drops shape [id], dragged by ([dx], [dy]) mm, with one of its points on another shape's end or
      * corner within [reach] mm, so the two join; or else on the nearest dot of a grid [step] mm apart, or just where
-     * the finger left it with no grid.
+     * the finger left it with no grid. A note lands on a point the same way but never on the grid.
      */
     fun dropShift(id: Long, dx: Float, dy: Float, reach: Float, step: Int? = GRID_MM): Pt {
         val moved = shapes.firstOrNull { it.id == id } ?: return Pt(0, 0)
         val others = shapes.filter { it.id != id }.flatMap { it.points }
         fun gap(from: Pt, to: Pt) = hypot(to.x - (from.x + dx), to.y - (from.y + dy))
-        val join = moved.points
+        val join = moved.extent
             .flatMap { p -> others.map { p to it } }
             .filter { (p, q) -> gap(p, q) <= reach }
             .minByOrNull { (p, q) -> gap(p, q) }
         val (from, to) = join ?: run {
-            val s = step ?: return Pt(dx.roundToInt(), dy.roundToInt())
-            moved.points
+            val s = step?.takeIf { moved !is Note } ?: return Pt(dx.roundToInt(), dy.roundToInt())
+            moved.extent
                 .map { p -> p to Pt(((p.x + dx) / s).roundToInt() * s, ((p.y + dy) / s).roundToInt() * s) }
                 .minBy { (p, q) -> gap(p, q) }
         }

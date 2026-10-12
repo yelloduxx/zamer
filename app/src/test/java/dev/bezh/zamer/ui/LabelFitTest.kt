@@ -143,6 +143,8 @@ abstract class LabelFitTest(private val locale: String) {
         listOf(LinkState.NeedsPermission, LinkState.BluetoothOff, LinkState.NeedsRepair, LinkState.NotPaired).forEach { link ->
             SketchTopBar(
                 title = stringResource(R.string.sketch_title),
+                name = null,
+                onRename = {},
                 onBack = {},
                 onSave = {},
                 onShare = {},
@@ -155,7 +157,12 @@ abstract class LabelFitTest(private val locale: String) {
 
     @Test
     fun sketchExportMenu() = renderMenu("sketch-export", R.string.sketch_export) {
-        SketchTopBar("Kitchen", onBack = {}, onSave = {}, onShare = {}, canExport = true) {}
+        SketchTopBar("Kitchen", "Kitchen", onRename = {}, onBack = {}, onSave = {}, onShare = {}, canExport = true) {}
+    }
+
+    @Test
+    fun sketchRename() = render("sketch-rename") {
+        SketchTopBar("Kitchen", null, onRename = {}, onBack = {}, onSave = {}, onShare = {}, canExport = true, renaming = true) {}
     }
 
     @Test

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -218,6 +219,8 @@ fun SketchScreen(
         val drawn = sketch.shapes.isNotEmpty() || doc.background is Background.Photo
         SketchTopBar(
             title = doc.title(context),
+            name = doc.name,
+            onRename = { vm.rename(doc.id, it) },
             onBack = onBack,
             onSave = {
                 export { image, name ->
@@ -357,32 +360,53 @@ fun SketchScreen(
 
 private val ActionPadding = PaddingValues(horizontal = 8.dp)
 
-/** Back, the sketch's [title], exporting it as an image, and the connection [pill]. */
+/**
+ * Back, the sketch's [title], exporting it as an image, and the connection [pill]. Tapping the title edits the sketch's
+ * [name] in its place.
+ */
 @Composable
 internal fun SketchTopBar(
     title: String,
+    name: String?,
+    onRename: (String) -> Unit,
     onBack: () -> Unit,
     onSave: () -> Unit,
     onShare: () -> Unit,
     canExport: Boolean,
+    renaming: Boolean = false,
     pill: @Composable () -> Unit,
 ) {
+    var editing by rememberSaveable { mutableStateOf(renaming) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = ScreenPadding, top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
+        if (editing) {
+            NameField(
+                initial = name,
+                onCommit = {
+                    editing = false
+                    onRename(it)
+                },
+                modifier = Modifier.weight(1f).padding(start = ScreenPadding - 4.dp),
+            )
+        } else {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
+            }
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClickLabel = stringResource(R.string.action_rename)) { editing = true }
+                    .padding(start = 4.dp, top = 8.dp, bottom = 8.dp),
+            )
+            ExportMenu(onSave, onShare, enabled = canExport)
+            pill()
         }
-        Text(
-            title,
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 4.dp),
-        )
-        ExportMenu(onSave, onShare, enabled = canExport)
-        pill()
     }
 }
 

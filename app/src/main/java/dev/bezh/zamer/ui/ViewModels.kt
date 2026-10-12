@@ -15,6 +15,7 @@ import dev.bezh.zamer.ble.PairOutcome
 import dev.bezh.zamer.data.HistoryEntry
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.domain.Background
+import dev.bezh.zamer.domain.Draft
 import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.Note
 import dev.bezh.zamer.domain.Pt
@@ -68,7 +69,7 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     private val session = MutableStateFlow(Session())
 
     private val stored = combine(c.store.workspace, c.store.history, c.store.readings) { ws, history, log ->
-        val ids = ws.drafts.values.mapNotNullTo(HashSet()) { it.savedId }
+        val ids = ws.drafts.values.mapNotNullTo(HashSet()) { (it as? Draft.Complete)?.savedId }
         MeasureUiState(
             workspace = ws,
             recent = log.recentValues(),

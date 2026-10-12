@@ -177,7 +177,7 @@ private fun ModePage(
             mode = mode,
             draft = draft,
             result = ws.result(mode),
-            saved = draft.savedId?.let(saved::get),
+            saved = (draft as? Draft.Complete)?.savedId?.let(saved::get),
             lastMm = lastMm,
             readingCount = readingCount,
             formatter = formatter,
@@ -251,7 +251,7 @@ private fun Readout(
     modifier: Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val impossible = draft.isComplete && result == null
+    val impossible = draft is Draft.Complete && result == null
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(44.dp),
@@ -292,7 +292,7 @@ private fun Readout(
                         title = stringResource(R.string.height_impossible)
                         quantity = null
                         extra = null
-                    } else if (draft.next != null && (lastMm != null || draft.values.any { it != null })) {
+                    } else if (draft is Draft.Filling && (lastMm != null || draft.values.any { it != null })) {
                         title = stringResource(prompt(mode, mode.sides[draft.next]))
                         quantity = lastMm?.let(formatter::length)
                         extra = lastMm?.let { stringResource(R.string.last_reading) }
@@ -396,7 +396,7 @@ private fun LocalContentColorAlpha(alpha: Float) =
 internal fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = TileSpacing) {
         draft.values.forEachIndexed { i, mm ->
-            val waiting = i == draft.next
+            val waiting = draft is Draft.Filling && i == draft.next
             Surface(
                 onClick = { onSelect(i) },
                 modifier = Modifier.weight(1f),

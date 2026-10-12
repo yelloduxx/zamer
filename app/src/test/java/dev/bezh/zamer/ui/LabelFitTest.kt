@@ -102,7 +102,7 @@ abstract class LabelFitTest(private val locale: String) {
         ModeSelector(MeasureMode.DISTANCE, onSelect = {}, modifier = inset)
         listOf(MeasureMode.AREA, MeasureMode.VOLUME, MeasureMode.HEIGHT).forEach { mode ->
             Column(inset) {
-                SlotRow(mode, Draft(List(mode.sides.size) { null }, next = 0), formatter, onSelect = {})
+                SlotRow(mode, Draft.empty(mode), formatter, onSelect = {})
             }
         }
         Row(inset) { InlineName(HistoryEntry(1, 0, MeasureMode.AREA, listOf(4000, 3000)), onRename = { _, _ -> }) }

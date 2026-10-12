@@ -146,10 +146,10 @@ class RangefinderRepository(
                 for (frame in link.sessionFrames) {
                     when (val decrypted = keys.decrypt(frame)) {
                         is DeviceFrame.Report -> {
-                            current.send(decrypted.ack)
+                            current.send(decrypted.header.ack())
                             onReport(decrypted)
                         }
-                        is DeviceFrame.MultiFrameReport -> current.send(decrypted.ack)
+                        is DeviceFrame.MultiFrameReport -> current.send(decrypted.header.ack())
                         is DeviceFrame.Other, null -> Unit
                     }
                 }
@@ -198,13 +198,13 @@ class RangefinderRepository(
     private class Session(private val link: GattLink, private val keys: SessionKeys) {
         private val lock = Mutex()
         private var counter = 0
-        private var msgId = 0
+        private var msgId = MsgId(MsgId.MAX)
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         suspend fun send(plain: ByteArray) = lock.withLock { link.writeData(keys.encrypt(plain, ++counter)) }
 
-        fun nextMsgId(): Int = synchronized(this) {
-            msgId = msgId % 15 + 1
+        fun nextMsgId(): MsgId = synchronized(this) {
+            msgId = msgId.next()
             msgId
         }
     }

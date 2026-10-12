@@ -3,6 +3,7 @@ package dev.bezh.zamer
 import dev.bezh.zamer.ble.AuthLink
 import dev.bezh.zamer.ble.MiAuth
 import dev.bezh.zamer.ble.MiCrypto
+import dev.bezh.zamer.ble.MsgId
 import dev.bezh.zamer.ble.SessionKeys
 import dev.bezh.zamer.ble.Attribute
 import dev.bezh.zamer.ble.DeviceAttr
@@ -13,6 +14,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -103,14 +105,14 @@ class MiProtocolTest {
         val unit = session.decrypt("0200426e003d795463e97bcc39".hexToBytes()) as DeviceFrame.Report
         assertEquals(0L, reference.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.REFERENCE_ID))
         assertEquals(0L, unit.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.UNIT_ID))
-        assertEquals("1000", reference.ack.toHex())
+        assertEquals("1000", reference.header.ack().toHex())
     }
 
     @Test
     fun parsesReportsAndSkipsOtherMethods() {
         val report = DeviceFrame.parse("0300068002020104000a5b".hexToBytes()) as DeviceFrame.Report
         assertEquals(listOf(Attribute(2, 2, 1), Attribute(4, 0, 2651)), report.attributes)
-        assertEquals("1300", report.ack.toHex())
+        assertEquals("1300", report.header.ack().toHex())
         assertTrue(DeviceFrame.parse("030001ff00".hexToBytes()) is DeviceFrame.Other)
     }
 
@@ -118,12 +120,19 @@ class MiProtocolTest {
     fun multiFrameReportIsAcknowledgedButNotParsed() {
         val frame = DeviceFrame.parse("02100580040005b7".hexToBytes())
         assertTrue(frame is DeviceFrame.MultiFrameReport)
-        assertEquals("1210", (frame as DeviceFrame.MultiFrameReport).ack.toHex())
+        assertEquals("1210", (frame as DeviceFrame.MultiFrameReport).header.ack().toHex())
+    }
+
+    @Test
+    fun appMessageIdsCycleOneToFifteen() {
+        assertEquals(MsgId(1), MsgId(MsgId.MAX).next())
+        assertEquals(MsgId(15), MsgId(14).next())
+        assertFalse(runCatching { MsgId(0) }.isSuccess)
     }
 
     @Test
     fun encryptsCommandsWithTheAppKey() {
-        val command = DeviceAttr.set(msgId = 3, id = DeviceAttr.UNIT_ID, value = 1)
+        val command = DeviceAttr.set(msgId = MsgId(3), id = DeviceAttr.UNIT_ID, value = 1)
         assertEquals("03000401020201", command.toHex())
         val frame = session.encrypt(command, counter = 5)
         assertEquals(13, frame.size)

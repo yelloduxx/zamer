@@ -2,24 +2,49 @@ package dev.bezh.zamer.ble
 
 data class Attribute(val type: Int, val id: Int, val value: Long)
 
+@ConsistentCopyVisibility
+data class Header private constructor(private val byte0: Int, private val byte1: Int) {
+    val fromApp: Boolean get() = byte0 and FROM_APP != 0
+
+    val isSingleFrame: Boolean get() = byte1 shr 4 == 0
+
+    fun ack(): ByteArray = byteArrayOf((byte0 or FROM_APP).toByte(), byte1.toByte())
+
+    companion object {
+        private const val FROM_APP = 0x10
+
+        fun of(message: ByteArray): Header? =
+            if (message.size < 2) null else Header(message[0].toInt() and 0xFF, message[1].toInt() and 0xFF)
+    }
+}
+
+@JvmInline
+value class MsgId(val value: Int) {
+    init {
+        require(value in 1..MAX)
+    }
+
+    fun next() = MsgId(value % MAX + 1)
+
+    companion object {
+        const val MAX = 15
+    }
+}
+
 sealed interface DeviceFrame {
-    data class Report(val attributes: List<Attribute>, val ack: ByteArray) : DeviceFrame {
+    data class Report(val header: Header, val attributes: List<Attribute>) : DeviceFrame {
         fun valueOf(type: Int, id: Int): Long? = attributes.firstOrNull { it.type == type && it.id == id }?.value
     }
 
-    data class MultiFrameReport(val ack: ByteArray) : DeviceFrame
+    data class MultiFrameReport(val header: Header) : DeviceFrame
 
     data class Other(val raw: ByteArray) : DeviceFrame
 
     companion object {
         fun parse(p: ByteArray): DeviceFrame {
-            if (p.size < 4) return Other(p)
-            fun u(i: Int) = p[i].toInt() and 0xFF
-            val fromApp = u(0) shr 4 and 1 == 1
-            if (fromApp || u(3) != METHOD_REPORT) return Other(p)
-            val ack = byteArrayOf((u(0) or 0x10).toByte(), p[1])
-            val single = u(1) shr 4 == 0
-            return if (single) Report(attributes(p, 4), ack) else MultiFrameReport(ack)
+            val header = Header.of(p)
+            if (header == null || p.size < 4 || header.fromApp || p[3].toInt() and 0xFF != METHOD_REPORT) return Other(p)
+            return if (header.isSingleFrame) Report(header, attributes(p, 4)) else MultiFrameReport(header)
         }
 
         private fun attributes(p: ByteArray, start: Int): List<Attribute> {
@@ -56,8 +81,8 @@ object DeviceAttr {
     const val REFERENCE_ID = 0x01
     const val UNIT_ID = 0x02
 
-    fun set(msgId: Int, id: Int, value: Int): ByteArray =
-        byteArrayOf(msgId.toByte(), 0, 4, METHOD_SET, SETTING_TYPE.toByte(), id.toByte(), value.toByte())
+    fun set(msgId: MsgId, id: Int, value: Int): ByteArray =
+        byteArrayOf(msgId.value.toByte(), 0, 4, METHOD_SET, SETTING_TYPE.toByte(), id.toByte(), value.toByte())
 
     private const val METHOD_SET: Byte = 0x01
 }

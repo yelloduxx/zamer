@@ -9,20 +9,19 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
@@ -57,6 +57,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -153,6 +154,9 @@ fun SketchScreen(
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var fits by remember { mutableIntStateOf(0) }
     val sketch = doc.sketch
+    val photo by produceState<ImageBitmap?>(null, doc.background) {
+        value = (doc.background as? Background.Photo)?.let { vm.photo(it.file, Int.MAX_VALUE) }
+    }
     // The side whose length is being typed; it is also the target, so the typed value goes where a reading would.
     var editing by remember { mutableStateOf<SideRef?>(null) }
     LaunchedEffect(sketch.target) { if (sketch.target != editing) editing = null }
@@ -180,7 +184,7 @@ fun SketchScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
-            IconButton(onClick = { fits++ }, enabled = sketch.shapes.isNotEmpty()) {
+            IconButton(onClick = { fits++ }, enabled = sketch.shapes.isNotEmpty() || doc.background is Background.Photo) {
                 Icon(Icons.Rounded.FitScreen, contentDescription = stringResource(R.string.sketch_fit))
             }
             ConnectionPill(
@@ -197,7 +201,7 @@ fun SketchScreen(
                 SketchCanvas(
                     sketch = sketch,
                     background = doc.background,
-                    photo = null,
+                    photo = photo,
                     tool = tool,
                     formatter = formatter,
                     fits = fits,

@@ -7,6 +7,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import dev.bezh.zamer.ble.RangefinderRepository
 import dev.bezh.zamer.ble.RangefinderScanner
 import dev.bezh.zamer.data.AppStore
+import dev.bezh.zamer.data.PhotoStore
 import dev.bezh.zamer.domain.Reading
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ enum class ReadingTarget { MEASURE, SKETCH }
 class AppContainer(app: Application) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val store = AppStore(app)
+    val photos = PhotoStore(app)
     val scanner = RangefinderScanner(app)
     val repository = RangefinderRepository(app, store, scanner, scope)
 

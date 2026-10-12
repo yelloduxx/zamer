@@ -51,6 +51,11 @@
     <string name="sketches_title">Эскизы</string>
     <string name="sketches_empty">Здесь появятся ваши эскизы</string>
     <string name="sketch_new_plan">Новый план</string>
+    <string name="sketch_new_photo">На фото</string>
+    <string name="sketch_photo_camera">Сфотографировать</string>
+    <string name="sketch_photo_gallery">Выбрать из галереи</string>
+    <string name="sketch_photo_failed">Не удалось открыть фото</string>
+    <string name="sketch_no_camera">Нет приложения камеры</string>
     <string name="sketch_more">Ещё</string>
     <string name="sketch_delete_confirm">Удалить этот эскиз?</string>
     <string name="action_rename">Переименовать</string>

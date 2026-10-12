@@ -1,5 +1,8 @@
 package dev.bezh.zamer.ui
 
+import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,6 +13,7 @@ import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.ble.PairOutcome
 import dev.bezh.zamer.data.HistoryEntry
 import dev.bezh.zamer.data.Settings
+import dev.bezh.zamer.domain.Background
 import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Reading
@@ -19,6 +23,7 @@ import dev.bezh.zamer.domain.SideRef
 import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.SketchDoc
 import dev.bezh.zamer.domain.Workspace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -167,12 +172,38 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
         return now
     }
 
+    /** Where the camera app writes a shot for [newPhoto]. */
+    fun newCameraShot(): Uri = c.photos.newCameraShot()
+
+    /** Starts a sketch over the image at [uri], then gives its id to [onCreated], or calls [onFailed] if it can't be read. */
+    fun newPhoto(uri: Uri, onCreated: (Long) -> Unit, onFailed: () -> Unit) {
+        viewModelScope.launch {
+            val photo = try {
+                c.photos.import(uri)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                onFailed()
+                return@launch
+            }
+            val now = System.currentTimeMillis()
+            c.store.addSketch(SketchDoc(id = now, created = now, background = photo))
+            onCreated(now)
+        }
+    }
+
+    /** The photo [file] a sketch is drawn over, at most [maxSide] pixels on its long side. */
+    suspend fun photo(file: String, maxSide: Int): ImageBitmap? = c.photos.load(file, maxSide)?.asImageBitmap()
+
     fun rename(id: Long, title: String) {
         viewModelScope.launch { c.store.updateSketch(id) { it.renamed(title) } }
     }
 
+    /** Deletes sketch [id] and the photo it was drawn over. */
     fun delete(id: Long) {
-        viewModelScope.launch { c.store.deleteSketch(id) }
+        viewModelScope.launch {
+            val gone = c.store.deleteSketch(id)
+            (gone?.background as? Background.Photo)?.let { c.photos.delete(it.file) }
+        }
     }
 
     /** Measures the selected side with [mm]; [fromDevice] readings also buzz. */

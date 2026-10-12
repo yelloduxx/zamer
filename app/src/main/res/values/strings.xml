@@ -51,6 +51,11 @@
     <string name="sketches_title">Sketches</string>
     <string name="sketches_empty">Your sketches will appear here</string>
     <string name="sketch_new_plan">New plan</string>
+    <string name="sketch_new_photo">On a photo</string>
+    <string name="sketch_photo_camera">Take a photo</string>
+    <string name="sketch_photo_gallery">Choose from gallery</string>
+    <string name="sketch_photo_failed">Couldn\'t open the photo</string>
+    <string name="sketch_no_camera">No camera app found</string>
     <string name="sketch_more">More</string>
     <string name="sketch_delete_confirm">Delete this sketch?</string>
     <string name="action_rename">Rename</string>

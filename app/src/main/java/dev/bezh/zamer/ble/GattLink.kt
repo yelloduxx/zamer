@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.CompletableDeferred
@@ -144,7 +145,7 @@ class GattLink(private val context: Context) : AuthLink {
         val cccd = c.getDescriptor(Uuids.CCCD) ?: throw IOException("Notifications unsupported")
         val status = operation {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == BluetoothGatt.GATT_SUCCESS
+                g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == BluetoothStatusCodes.SUCCESS
             } else {
                 cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                 g.writeDescriptor(cccd)
@@ -159,7 +160,7 @@ class GattLink(private val context: Context) : AuthLink {
         c ?: throw IOException("Not connected")
         val status = operation {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                g.writeCharacteristic(c, data, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) == BluetoothGatt.GATT_SUCCESS
+                g.writeCharacteristic(c, data, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) == BluetoothStatusCodes.SUCCESS
             } else {
                 c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
                 c.value = data
@@ -169,6 +170,8 @@ class GattLink(private val context: Context) : AuthLink {
         if (status != BluetoothGatt.GATT_SUCCESS) throw IOException("Write failed ($status)")
     }
 
+    // A write without response still gets onCharacteristicWrite once the stack has queued it, and
+    // BluetoothGatt refuses the next write until then, so every write waits for its callback.
     private suspend fun operation(start: () -> Boolean): Int = opLock.withLock {
         val done = CompletableDeferred<Int>()
         pendingOp = done
@@ -177,7 +180,7 @@ class GattLink(private val context: Context) : AuthLink {
             try {
                 withTimeout(OP_TIMEOUT_MS) { done.await() }
             } catch (e: TimeoutCancellationException) {
-                BluetoothGatt.GATT_SUCCESS
+                throw IOException("The operation timed out")
             }
         } finally {
             pendingOp = null

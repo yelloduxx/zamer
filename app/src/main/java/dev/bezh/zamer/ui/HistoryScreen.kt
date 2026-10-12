@@ -104,7 +104,6 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
         HistoryTab.Readings -> readings.isEmpty()
     }
 
-    // imePadding keeps a card being renamed above the keyboard.
     Column(Modifier.fillMaxSize().padding(contentPadding).consumeWindowInsets(contentPadding).imePadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 8.dp),
@@ -168,8 +167,6 @@ internal fun TabSelector(selected: HistoryTab, onSelect: (HistoryTab) -> Unit, m
     }
 }
 
-// ---------------------------------------------------------------- results
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ResultsTab(
@@ -207,7 +204,6 @@ private fun ResultsTab(
     }
 }
 
-/** Matches the name the user gave, or the kind of measurement. */
 private fun HistoryEntry.matches(query: String, modeName: String): Boolean {
     val q = query.trim()
     return q.isEmpty() || title?.contains(q, ignoreCase = true) == true || modeName.contains(q, ignoreCase = true)
@@ -302,8 +298,6 @@ private fun HistoryCard(entry: HistoryEntry, formatter: Formatter, onRename: (St
     }
 }
 
-// --------------------------------------------------------------- readings
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ReadingsTab(readings: List<Reading>, formatter: Formatter, onDelete: (Reading) -> Unit) {
@@ -334,8 +328,6 @@ private fun ReadingsTab(readings: List<Reading>, formatter: Formatter, onDelete:
         }
     }
 }
-
-// ----------------------------------------------------------------- shared
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

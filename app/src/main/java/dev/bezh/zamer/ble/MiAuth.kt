@@ -5,7 +5,6 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.withTimeout
 import java.security.SecureRandom
 
-/** Byte pipe to the device's Xiaomi auth characteristics (UPNP 0x0010 and AVDTP 0x0019). */
 interface AuthLink {
     suspend fun writeUpnp(data: ByteArray)
     suspend fun writeAvdtp(data: ByteArray)
@@ -15,17 +14,14 @@ interface AuthLink {
 
 open class MiAuthException(message: String) : Exception(message)
 
-/** The device answered, but doesn't recognise our pairing (it was paired with another app, or reset). */
 class PairingRejectedException(message: String) : MiAuthException(message)
 
-/** Keys negotiated by a login; each direction has its own key and IV. */
 class SessionKeys(
     val devKey: ByteArray,
     val appKey: ByteArray,
     val devIv: ByteArray,
     val appIv: ByteArray,
 ) {
-    /** Session frame: `[counter u16 LE][AES-CCM ciphertext + 4-byte tag]`, nonce = iv + 0000 + counter(u32 LE). */
     fun decrypt(frame: ByteArray): DeviceFrame? {
         if (frame.size < 7) return null
         val counter = (frame[0].toInt() and 0xFF) or ((frame[1].toInt() and 0xFF) shl 8)
@@ -33,7 +29,6 @@ class SessionKeys(
         return DeviceFrame.parse(plain)
     }
 
-    /** The same framing toward the device. [counter] must grow with every frame of the session. */
     fun encrypt(plain: ByteArray, counter: Int): ByteArray =
         byteArrayOf(counter.toByte(), (counter shr 8).toByte()) + MiCrypto.ccmEncrypt(appKey, nonce(appIv, counter), plain)
 
@@ -41,17 +36,11 @@ class SessionKeys(
         iv + ByteArray(4) + byteArrayOf(counter.toByte(), (counter shr 8).toByte(), (counter shr 16).toByte(), (counter shr 24).toByte())
 }
 
-/**
- * Xiaomi standard BLE authentication, run locally without any Xiaomi account:
- * [register] pairs with the device (ECDH) and yields a 12-byte token; [login] uses that token
- * on every later connection to derive session keys.
- */
 class MiAuth(
     private val link: AuthLink,
     private val random: SecureRandom = SecureRandom(),
     private val stepTimeoutMs: Long = 8_000,
 ) {
-    /** Pairs with the device. Any previous pairing is replaced. Returns the token to persist. */
     suspend fun register(): ByteArray {
         val own = MiCrypto.generateKeyPair()
 
@@ -111,8 +100,6 @@ class MiAuth(
         if (!result.contentEquals(CFM_LOGIN_OK)) throw PairingRejectedException("Login rejected (${result.toHex()})")
         return keys
     }
-
-    // ---- framing: a "parcel" is a header + frames of [index u16 LE][up to 18 bytes] ----
 
     private class Parcel(val header: ByteArray, val payload: ByteArray)
 

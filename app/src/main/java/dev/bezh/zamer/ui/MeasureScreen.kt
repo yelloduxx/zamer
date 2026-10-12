@@ -94,7 +94,6 @@ fun MeasureScreen(
         Formatter(ui.settings.units, ui.settings.decimals)
     }
     val haptics = LocalHapticFeedback.current
-    // Readings that arrived before this screen was shown (e.g. while on History) must not buzz on return.
     val countOnEntry = remember { ui.readingCount }
     LaunchedEffect(ui.readingCount) {
         if (ui.readingCount > countOnEntry && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -105,7 +104,6 @@ fun MeasureScreen(
             .fillMaxSize()
             .padding(contentPadding)
             .consumeWindowInsets(contentPadding)
-            // Shrinks the card while typing a name, so the field stays above the keyboard.
             .imePadding()
             .padding(bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -118,7 +116,6 @@ fun MeasureScreen(
             onPair = onPair,
             modifier = inset,
         )
-        // The pager starts on the stored mode, so it waits for the workspace to load.
         val ws = ui.workspace ?: return@Column
         val pager = rememberPagerState(initialPage = ws.mode.ordinal) { MeasureMode.entries.size }
         val mode by rememberUpdatedState(ws.mode)
@@ -131,7 +128,6 @@ fun MeasureScreen(
             if (pager.currentPage != ws.mode.ordinal) pager.animateScrollToPage(ws.mode.ordinal)
         }
 
-        // Highlight the page the swipe is heading to, not the one it settles on, so the buttons keep up.
         ModeSelector(MeasureMode.entries[pager.targetPage], vm::setMode, inset)
         HorizontalPager(
             state = pager,
@@ -162,7 +158,6 @@ fun MeasureScreen(
     }
 }
 
-/** Everything that belongs to one mode: its readout, its slots and how to measure it. */
 @Composable
 private fun ModePage(
     mode: MeasureMode,
@@ -204,8 +199,6 @@ private fun ModePage(
     }
 }
 
-// ----------------------------------------------------------------- mode
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit, modifier: Modifier = Modifier) {
@@ -222,7 +215,6 @@ internal fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit
                     .weight(1f)
                     .height(56.dp)
                     .semantics { role = Role.RadioButton },
-                // Four labels share 360dp; the default padding would truncate them.
                 contentPadding = PaddingValues(horizontal = 4.dp),
                 shapes = when (i) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -244,8 +236,6 @@ private fun prompt(mode: MeasureMode, side: Side) = when (side) {
     Side.HYPOTENUSE -> R.string.slot_next_hypotenuse
 }
 
-// ---------------------------------------------------------------- readout
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun Readout(
@@ -257,7 +247,6 @@ private fun Readout(
     readingCount: Int,
     formatter: Formatter,
     onRename: (Long, String) -> Unit,
-    /** Shown as a button in the card's corner when set. */
     onOpenSketch: (() -> Unit)?,
     modifier: Modifier,
 ) {
@@ -379,7 +368,6 @@ private fun Readout(
     }
 }
 
-/** The result's name, edited in place: tap the button and it becomes a text field. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun InlineName(saved: HistoryEntry, onRename: (Long, String) -> Unit) {
@@ -401,8 +389,6 @@ internal fun InlineName(saved: HistoryEntry, onRename: (Long, String) -> Unit) {
 @Composable
 private fun LocalContentColorAlpha(alpha: Float) =
     androidx.compose.material3.LocalContentColor.current.copy(alpha = alpha)
-
-// ------------------------------------------------------------------ slots
 
 @Composable
 internal fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSelect: (Int) -> Unit) {
@@ -434,8 +420,6 @@ internal fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSe
         }
     }
 }
-
-// ---------------------------------------------------------------- actions
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable

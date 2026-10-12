@@ -33,7 +33,6 @@ sealed interface LinkState {
     data object Connecting : LinkState
     data object Connected : LinkState
 
-    /** The device no longer accepts our pairing (paired elsewhere or reset); pair again. */
     data object NeedsRepair : LinkState
 }
 
@@ -42,10 +41,6 @@ sealed interface PairOutcome {
     data class Failure(val message: String) : PairOutcome
 }
 
-/**
- * Keeps the app connected to the paired rangefinder while the app is on screen and turns its
- * button presses into [readings]. All Bluetooth work happens on [scope].
- */
 class RangefinderRepository(
     private val context: Context,
     private val store: AppStore,
@@ -59,7 +54,6 @@ class RangefinderRepository(
     val readings: SharedFlow<Reading> = _readings.asSharedFlow()
 
     private val _device = MutableStateFlow(DeviceSettings())
-    /** The rangefinder's own settings, as it last reported them over the current connection. */
     val deviceSettings: StateFlow<DeviceSettings> = _device.asStateFlow()
 
     private val pairingLock = Mutex()
@@ -71,7 +65,6 @@ class RangefinderRepository(
         context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** Connect while the app is visible, release the radio (and the device) otherwise. */
     fun setForeground(value: Boolean) {
         foreground = value
         if (value) startLoop() else stopLoop()
@@ -147,7 +140,6 @@ class RangefinderRepository(
                 failures = 0
                 for (frame in link.sessionFrames) {
                     val report = keys.decrypt(frame) as? DeviceFrame.Report ?: continue
-                    // Unacknowledged reports are repeated by the device.
                     current.send(report.ack)
                     onReport(report)
                 }
@@ -177,17 +169,14 @@ class RangefinderRepository(
         report.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.UNIT_ID)?.let { v ->
             DeviceUnit.entries.getOrNull(v.toInt())?.let { u ->
                 _device.update { it.copy(unit = u) }
-                // The rangefinder has no unit button of its own, so the app's setting is the one to keep.
                 val wanted = if (store.settings.first().units == UnitSystem.IMPERIAL) DeviceUnit.FEET else DeviceUnit.METRES
                 if (u != wanted) setDeviceUnit(wanted)
             }
         }
     }
 
-    /** Asks the device to measure from [edge]; false when not connected. The device confirms by reporting it. */
     suspend fun setReference(edge: ReferenceEdge): Boolean = sendSetting(DeviceAttr.REFERENCE_ID, edge.ordinal)
 
-    /** Switches the device's own display to [unit]; readings still arrive in millimetres. */
     suspend fun setDeviceUnit(unit: DeviceUnit): Boolean = sendSetting(DeviceAttr.UNIT_ID, unit.ordinal)
 
     private suspend fun sendSetting(id: Int, value: Int): Boolean {
@@ -195,7 +184,6 @@ class RangefinderRepository(
         return runCatching { s.send(DeviceAttr.set(s.nextMsgId(), id, value)) }.isSuccess
     }
 
-    /** One logged-in connection: frames to the device need a counter that only grows. */
     private class Session(private val link: GattLink, private val keys: SessionKeys) {
         private val lock = Mutex()
         private var counter = 0

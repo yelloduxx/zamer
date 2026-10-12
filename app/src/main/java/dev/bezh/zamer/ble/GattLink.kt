@@ -30,10 +30,6 @@ internal object Uuids {
     val CCCD = short(0x2902)
 }
 
-/**
- * One GATT connection to the rangefinder. Auth traffic is exposed as [AuthLink]; encrypted
- * session frames (measurements) arrive on [sessionFrames]. Channels close when the link drops.
- */
 @SuppressLint("MissingPermission")
 class GattLink(private val context: Context) : AuthLink {
 
@@ -94,7 +90,6 @@ class GattLink(private val context: Context) : AuthLink {
         }
     }
 
-    /** Connects, discovers services and enables the notifications the protocol needs. */
     suspend fun open(device: BluetoothDevice) {
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
             ?: throw IOException("Could not start a connection")
@@ -125,7 +120,6 @@ class GattLink(private val context: Context) : AuthLink {
 
     override suspend fun writeAvdtp(data: ByteArray) = write(avdtpChar, data)
 
-    /** An encrypted session frame for the device (see [SessionKeys.encrypt]). */
     suspend fun writeData(frame: ByteArray) = write(dataWriteChar, frame)
 
     fun close() {
@@ -175,7 +169,6 @@ class GattLink(private val context: Context) : AuthLink {
         if (status != BluetoothGatt.GATT_SUCCESS) throw IOException("Write failed ($status)")
     }
 
-    /** Runs one GATT operation at a time and waits for its completion callback. */
     private suspend fun operation(start: () -> Boolean): Int = opLock.withLock {
         val done = CompletableDeferred<Int>()
         pendingOp = done
@@ -184,7 +177,6 @@ class GattLink(private val context: Context) : AuthLink {
             try {
                 withTimeout(OP_TIMEOUT_MS) { done.await() }
             } catch (e: TimeoutCancellationException) {
-                // Write-without-response may not always be confirmed by the stack; treat as sent.
                 BluetoothGatt.GATT_SUCCESS
             }
         } finally {

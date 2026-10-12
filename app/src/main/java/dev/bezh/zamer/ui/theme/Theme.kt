@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 import dev.bezh.zamer.data.ThemeMode
 
-// Laser-red palette used when wallpaper colours are off or unavailable.
 private val LightColors = lightColorScheme(
     primary = Color(0xFFB3261E),
     onPrimary = Color.White,
@@ -84,7 +83,6 @@ private val DarkColors = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6),
 )
 
-/** Digits of equal width so a changing reading doesn't jitter. */
 val TabularFigures = TextStyle(fontFeatureSettings = "tnum")
 
 private val ZamerTypography = Typography().let { base ->

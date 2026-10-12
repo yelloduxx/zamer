@@ -14,11 +14,7 @@ import javax.crypto.KeyAgreement
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * Primitives of the Xiaomi "standard" BLE security protocol: ECDH (P-256), HKDF-SHA256,
- * HMAC-SHA256 and AES-CCM with a 4-byte tag. AES-CCM is implemented here (RFC 3610) because
- * the platform providers don't expose it.
- */
+/** AES-CCM is implemented here (RFC 3610) because the platform providers don't expose it. */
 object MiCrypto {
 
     class EcKeyPair(val privateKey: PrivateKey, val publicRaw: ByteArray)
@@ -29,7 +25,6 @@ object MiCrypto {
         return EcKeyPair(kp.private, toFixed(w.affineX, 32) + toFixed(w.affineY, 32))
     }
 
-    /** ECDH with a peer public key given as raw X||Y (64 bytes). */
     fun ecdh(own: EcKeyPair, remoteRaw: ByteArray): ByteArray {
         require(remoteRaw.size == 64) { "public key must be 64 bytes" }
         val params = KeyPairGenerator.getInstance("EC")
@@ -66,8 +61,6 @@ object MiCrypto {
         return out
     }
 
-    // ---- AES-CCM (RFC 3610), nonce = 12 bytes (L = 3) ----
-
     fun ccmEncrypt(key: ByteArray, nonce: ByteArray, plaintext: ByteArray, aad: ByteArray = ByteArray(0), tagLen: Int = 4): ByteArray {
         val aes = aes(key)
         val tag = cbcMac(aes, nonce, plaintext, aad, tagLen)
@@ -77,7 +70,6 @@ object MiCrypto {
         return ct + encTag
     }
 
-    /** Returns the plaintext, or null when the tag doesn't verify. */
     fun ccmDecrypt(key: ByteArray, nonce: ByteArray, ciphertextWithTag: ByteArray, aad: ByteArray = ByteArray(0), tagLen: Int = 4): ByteArray? {
         if (ciphertextWithTag.size < tagLen) return null
         val aes = aes(key)
@@ -95,7 +87,7 @@ object MiCrypto {
 
     private fun counterBlock(nonce: ByteArray, i: Int): ByteArray {
         val b = ByteArray(16)
-        b[0] = 2 // L - 1, L = 3
+        b[0] = 2
         nonce.copyInto(b, 1, 0, 12)
         b[13] = (i shr 16).toByte(); b[14] = (i shr 8).toByte(); b[15] = i.toByte()
         return b

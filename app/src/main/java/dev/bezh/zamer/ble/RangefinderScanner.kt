@@ -19,7 +19,6 @@ data class FoundDevice(
     val device: BluetoothDevice,
 )
 
-/** Finds HOTO / Xiaomi laser rangefinders that are advertising (i.e. not connected to anything). */
 class RangefinderScanner(private val context: Context) {
 
     private val adapter get() = context.getSystemService(BluetoothManager::class.java)?.adapter
@@ -65,7 +64,6 @@ class RangefinderScanner(private val context: Context) {
         (serviceData[2].toInt() and 0xFF) or ((serviceData[3].toInt() and 0xFF) shl 8)
 
     private companion object {
-        /** HOTO's Chinese brand name; the JY001 advertises as "xiaojiang.cc_xxx". */
         const val NAME_PREFIX = "xiaojiang"
         val KNOWN_PRODUCT_IDS = setOf(0x09E2)
     }

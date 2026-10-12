@@ -19,10 +19,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.security.SecureRandom
 
-/** Vectors below were captured from a real HOTO QWCJY001 (JY001) and from the reference `cryptography` library. */
 class MiProtocolTest {
 
-    // key, nonce, aad, plaintext, expected ciphertext+tag (AES-CCM, 4-byte tag, "-" = empty)
     private val ccmVectors = listOf(
         "0104070a0d101316191c1f2225282b2e 020d18232e39444f5a65707b - - 137734f5",
         "1215181b1e2124272a2d303336393c3f 07121d28333e49545f6a7580 - 0a1724313e4b58 b38ee3f85165fd170b9394",
@@ -58,14 +56,12 @@ class MiProtocolTest {
 
     @Test
     fun decryptsRealMeasurements() {
-        // The user read 1.463 m and 0.434 m on the display for these two frames.
         val m1 = session.decrypt("0300e1a01fdf6c1986fd7023fb31".hexToBytes())
         val m2 = session.decrypt("040058d3299a37dda3eaa90a8b07".hexToBytes())
         assertEquals(listOf(Attribute(4, 0, 1463)), (m1 as DeviceFrame.Report).attributes)
         assertEquals(listOf(Attribute(4, 0, 434)), (m2 as DeviceFrame.Report).attributes)
     }
 
-    /** The two frames after login report the device's settings: reference edge (id 1) and unit (id 2), both 0. */
     @Test
     fun decryptsSettingsReports() {
         val reference = session.decrypt("01006d0926c408cb2248da3cd2".hexToBytes()) as DeviceFrame.Report
@@ -100,7 +96,6 @@ class MiProtocolTest {
         assertNull(other.decrypt("0300e1a01fdf6c1986fd7023fb31".hexToBytes()))
     }
 
-    /** Replays the login captured from the real device; checks every byte we send back. */
     @Test
     fun loginMatchesRecordedSession() = runBlocking {
         val token = "caba10d7494e3f63482c5266".hexToBytes()
@@ -141,11 +136,8 @@ class MiProtocolTest {
         assertEquals("00626c742e302e7a616d65723074657374303030", device.receivedDeviceId?.toHex())
     }
 
-    // ---- test doubles ----
-
     private class Step(val expect: String, vararg val reply: String)
 
-    /** Expects the app's AVDTP writes in a fixed order and answers each with canned notifications. */
     private class ScriptedLink(private val avdtpScript: List<Step>, private val upnpAfterLast: String) : AuthLink {
         override val upnp = Channel<ByteArray>(Channel.UNLIMITED)
         override val avdtp = Channel<ByteArray>(Channel.UNLIMITED)
@@ -168,7 +160,6 @@ class MiProtocolTest {
         }
     }
 
-    /** Plays the device side of registration, including its own ECDH key. */
     private class SimulatedDevice : AuthLink {
         override val upnp = Channel<ByteArray>(Channel.UNLIMITED)
         override val avdtp = Channel<ByteArray>(Channel.UNLIMITED)

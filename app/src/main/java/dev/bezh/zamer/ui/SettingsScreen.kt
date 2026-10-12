@@ -110,7 +110,6 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
                 onSelect = { e -> scope.launch { container.repository.setReference(e) } },
             )
             Text(stringResource(R.string.settings_units), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            // One choice for both screens: the app switches at once, the rangefinder when connected.
             Segmented(
                 options = listOf(R.string.units_metric to UnitSystem.METRIC, R.string.units_imperial to UnitSystem.IMPERIAL),
                 selected = settings.units,
@@ -190,7 +189,6 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
     }
 }
 
-/** Languages the app is translated into, each named in itself; a null tag follows the system. */
 private val Languages = listOf(
     null to null,
     "en" to "English",
@@ -200,7 +198,7 @@ private val Languages = listOf(
     "zh-CN" to "简体中文",
 )
 
-/** The per-app language. Android stores it and restarts the screen in the new language. */
+/** Android stores the per-app language and restarts the screen in the new language. */
 @Composable
 internal fun LanguageCard() {
     var open by remember { mutableStateOf(false) }
@@ -248,7 +246,6 @@ internal fun SettingsCard(title: String?, icon: (@Composable () -> Unit)? = null
     }
 }
 
-/** Two buttons that move onto separate lines when a language makes them too wide for one. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun DeviceActions(onRepair: () -> Unit, onForget: () -> Unit) {

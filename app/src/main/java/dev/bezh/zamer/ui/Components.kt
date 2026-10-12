@@ -75,7 +75,6 @@ import kotlinx.coroutines.delay
 
 enum class BtReadiness { NeedsPermission, BluetoothOff, Ready }
 
-/** Polls the things the user can fix in settings, so screens react as soon as they're fixed. */
 @Composable
 fun rememberBtReadiness(container: AppContainer): State<BtReadiness> {
     fun compute() = when {
@@ -103,7 +102,6 @@ fun rememberEnableBluetooth(): () -> Unit {
     return { launcher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) }
 }
 
-/** One-line connection status, with a button when the user can do something about it. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ConnectionPill(
@@ -112,7 +110,6 @@ fun ConnectionPill(
     onEnableBluetooth: () -> Unit,
     onPair: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Shows only the icon, and the action button when there is one; the label becomes its description. */
     compact: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -179,7 +176,6 @@ fun ConnectionPill(
     }
 }
 
-/** Earlier readings, so a value measured once can be reused without measuring again. */
 @Composable
 fun RecentReadings(values: List<Int>, formatter: Formatter, modifier: Modifier = Modifier, onPick: (Int) -> Unit) {
     Row(
@@ -198,10 +194,6 @@ fun RecentReadings(values: List<Int>, formatter: Formatter, modifier: Modifier =
     }
 }
 
-/**
- * Edits a result's name in place. Done, the check button, or tapping elsewhere all save via [onCommit];
- * a blank name removes it.
- */
 @Composable
 fun NameField(initial: String?, onCommit: (String) -> Unit, modifier: Modifier = Modifier) {
     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -239,7 +231,6 @@ fun NameField(initial: String?, onCommit: (String) -> Unit, modifier: Modifier =
     )
 }
 
-/** A one-line label that shrinks to fit its button instead of wrapping or being cut off, in any language. */
 @Composable
 fun FitText(text: String, modifier: Modifier = Modifier, style: TextStyle = LocalTextStyle.current) {
     Text(
@@ -252,7 +243,6 @@ fun FitText(text: String, modifier: Modifier = Modifier, style: TextStyle = Loca
     )
 }
 
-/** Equal-width, softly separated tiles use the same spacing everywhere. */
 val ScreenPadding = 16.dp
 val TileSpacing = Arrangement.spacedBy(12.dp)
 

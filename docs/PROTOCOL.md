@@ -21,7 +21,7 @@ The device advertises only while no central is connected to it. The Bluetooth ic
 | `FE95` | `0x0004` | read | Firmware version, for example `1.1.1_0038` |
 | `FE95` | `0x0010` (UPNP) | write, notify | Auth commands and results |
 | `FE95` | `0x0019` (AVDTP) | write without response, notify | Auth data, sent as parcels |
-| `FEB7` | `FEA7` | write without response | Encrypted app messages to the device (unused by Zamer) |
+| `FEB7` | `FEA7` | write without response | Encrypted app messages to the device. Zamer sends report acknowledgements and setting changes here. |
 | `FEB7` | `FEA8` | notify | Encrypted messages from the device, including measurements |
 
 Enable notifications on `0x0010`, `0x0019` and `FEA8` before you start the auth exchange.
@@ -111,7 +111,8 @@ Examples:
 
 ## Unknowns
 
-- The display's Bluetooth icon keeps blinking after a successful login. Acknowledging reports may change this; it is not confirmed.
+- The display's Bluetooth icon keeps blinking after a successful login. Zamer acknowledges every report; whether that stops the blinking is not confirmed.
+- No report split over several frames has been seen. Zamer acknowledges one but does not reassemble or read it.
 - Firmware update and other attributes are not documented here.
 
 ## Credits

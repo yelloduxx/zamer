@@ -26,7 +26,7 @@ private const val MAX_EXPORT_PX = 4096
  */
 private const val EXPORT_LONG_SIDE_DP = 640f
 
-/** Room around a plan's shapes, for labels set beside short sides and for the caption. */
+/** Room around a plan's shapes and notes, for labels set beside short sides and for the caption. */
 private val PlanMargin = 56.dp
 
 /** A plan exports on white paper in the app's own light colours, whatever the theme or wallpaper. */
@@ -43,8 +43,8 @@ private val PaperColors = SketchColors(
 )
 
 /**
- * [doc] drawn into a new bitmap with its labels and, if any, [caption] in the bottom corner. A plan is cropped to its
- * shapes with a margin, its long side [MAX_EXPORT_PX]; a photo sketch is the whole [photo] at its own resolution with
+ * [doc] drawn into a new bitmap with its labels, notes and, if any, [caption] in the bottom corner. A plan is cropped to
+ * its shapes and notes with a margin, its long side [MAX_EXPORT_PX]; a photo sketch is the whole [photo] at its own resolution with
  * the drawing over it. Null when there is nothing to draw: a plan without shapes, or a photo that couldn't be loaded.
  */
 internal fun renderSketch(
@@ -56,22 +56,23 @@ internal fun renderSketch(
     labelStyle: TextStyle,
     photoColors: SketchColors,
 ): Bitmap? {
+    val labels = SketchLabels(measurer, labelStyle, formatter)
     val width: Int
     val height: Int
     val density: Density
     val view: SketchView
     when (val background = doc.background) {
         Background.Plan -> {
-            val points = doc.sketch.shapes.flatMap { it.points }
-            if (points.isEmpty()) return null
-            val spanX = (points.maxOf { it.x } - points.minOf { it.x }).coerceAtLeast(1)
-            val spanY = (points.maxOf { it.y } - points.minOf { it.y }).coerceAtLeast(1)
             density = Density(MAX_EXPORT_PX / EXPORT_LONG_SIDE_DP)
             val margin = with(density) { PlanMargin.toPx() }
-            val k = (MAX_EXPORT_PX - 2 * margin) / maxOf(spanX, spanY)
-            width = (spanX * k + 2 * margin).roundToInt()
-            height = (spanY * k + 2 * margin).roundToInt()
-            view = fitView(points, width.toFloat(), height.toFloat(), margin) ?: return null
+            val points = doc.sketch.shapes.flatMap { it.points }
+            val boxes = with(density) { noteBoxes(doc.sketch.shapes, labels) }
+            val room = MAX_EXPORT_PX - 2 * margin
+            val k = fitZoom(points, boxes, room, room, 0f..Float.MAX_VALUE) ?: return null
+            val reach = reach(points, boxes, k)
+            width = (reach.width + 2 * margin).roundToInt()
+            height = (reach.height + 2 * margin).roundToInt()
+            view = SketchView(margin - reach.left, margin - reach.top, k)
         }
         is Background.Photo -> {
             if (photo == null) return null
@@ -94,7 +95,7 @@ internal fun renderSketch(
                 photoColors
             }
         }
-        drawShapes(doc.sketch.shapes, view, colors, SketchLabels(measurer, labelStyle, formatter))
+        drawShapes(doc.sketch.shapes, view, colors, labels)
         caption?.let {
             val text = measurer.measure(it, labelStyle.copy(color = colors.onLabel), density = this)
             val inset = 16.dp.toPx()

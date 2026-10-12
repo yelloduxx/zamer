@@ -190,6 +190,11 @@ abstract class LabelFitTest(private val locale: String) {
     }
 
     @Test
+    fun sketchNoteField() = render("sketch-note") {
+        NoteField("", onDone = {}, onCancel = {}, modifier = inset)
+    }
+
+    @Test
     fun language() {
         render("language") {
             Column(inset) { LanguageCard() }

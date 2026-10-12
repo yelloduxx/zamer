@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,12 +31,10 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FitScreen
-import androidx.compose.material.icons.rounded.HorizontalRule
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
@@ -98,6 +95,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -113,6 +111,7 @@ import dev.bezh.zamer.data.shareImage
 import dev.bezh.zamer.domain.Background
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.GRID_MM
+import dev.bezh.zamer.domain.Note
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.Segment
@@ -174,10 +173,16 @@ fun SketchScreen(
     val photo by produceState<ImageBitmap?>(null, doc.background) {
         value = (doc.background as? Background.Photo)?.let { vm.photo(it.file, Int.MAX_VALUE) }
     }
-    // The side whose length is being typed; it is also the target, so the typed value goes where a reading would.
-    var editing by remember { mutableStateOf<SideRef?>(null) }
-    LaunchedEffect(sketch.target) { if (sketch.target != editing) editing = null }
+    // A side being typed is also the target, so the typed value goes where a reading would.
+    var editing by remember { mutableStateOf<Typing?>(null) }
+    LaunchedEffect(sketch.target) {
+        val typing = editing
+        if (typing is Typing.Length && typing.side != sketch.target) editing = null
+    }
     BackHandler(enabled = editing != null) { editing = null }
+    // Picking a note leaves the target alone, so a reading still measures the side it was waiting for.
+    var picked by remember { mutableStateOf<Long?>(null) }
+    val pickedNote = picked?.takeIf { id -> sketch.shapes.any { it.id == id } }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -249,10 +254,22 @@ fun SketchScreen(
                     formatter = formatter,
                     fits = fits,
                     onDraw = { a, b -> vm.draw(tool, a, b) },
-                    onSelect = vm::select,
-                    onEdit = {
+                    picked = pickedNote,
+                    marker = (editing as? Typing.Text)?.takeIf { it.id == null }?.at,
+                    onSelect = {
+                        picked = null
                         vm.select(it)
-                        editing = it
+                    },
+                    onEdit = {
+                        picked = null
+                        vm.select(it)
+                        editing = Typing.Length(it)
+                    },
+                    onPick = { picked = it },
+                    onPlace = { editing = Typing.Text(it) },
+                    onWrite = {
+                        picked = it.id
+                        editing = Typing.Text(it.at, it.id, it.text)
                     },
                     onMove = vm::move,
                     onPickUp = { if (ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
@@ -275,34 +292,49 @@ fun SketchScreen(
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
-        val typing = editing
-        if (typing != null) {
-            val measured = sketch.shapes.firstOrNull { it.id == typing.shapeId }?.sides?.getOrNull(typing.side)
-            val shown = measured?.let { formatter.length(it).number }.orEmpty()
-            key(typing) {
-                LengthField(
-                    initial = shown,
-                    unit = formatter.length(0).unit,
-                    valid = { formatter.parseLength(it) != null },
-                    onDone = { text ->
-                        // A shown value is rounded; putting it back unchanged would nudge the drawing.
-                        if (text.isNotBlank() && text.trim() == shown) {
-                            editing = null
-                        } else {
-                            formatter.parseLength(text)?.let {
+        when (val typing = editing) {
+            is Typing.Length -> {
+                val measured = sketch.shapes.firstOrNull { it.id == typing.side.shapeId }?.sides?.getOrNull(typing.side.side)
+                val shown = measured?.let { formatter.length(it).number }.orEmpty()
+                key(typing) {
+                    LengthField(
+                        initial = shown,
+                        unit = formatter.length(0).unit,
+                        valid = { formatter.parseLength(it) != null },
+                        onDone = { text ->
+                            // A shown value is rounded; putting it back unchanged would nudge the drawing.
+                            if (text.isNotBlank() && text.trim() == shown) {
                                 editing = null
-                                vm.put(it)
+                            } else {
+                                formatter.parseLength(text)?.let {
+                                    editing = null
+                                    vm.put(it)
+                                }
                             }
+                        },
+                        onCancel = { editing = null },
+                        modifier = inset,
+                    )
+                }
+            }
+            is Typing.Text -> key(typing) {
+                NoteField(
+                    initial = typing.initial,
+                    onDone = { text ->
+                        editing = null
+                        if (text.isNotBlank()) {
+                            if (typing.id == null) vm.note(typing.at, text) else vm.write(typing.id, text)
+                            tool = SketchTool.LINE
                         }
                     },
                     onCancel = { editing = null },
                     modifier = inset,
                 )
             }
-        } else {
-            Text(
+            null -> Text(
                 stringResource(
                     when {
+                        tool == SketchTool.TEXT -> R.string.sketch_prompt_note
                         sketch.target != null -> R.string.sketch_prompt_measure
                         sketch.shapes.isEmpty() -> R.string.sketch_prompt_draw
                         else -> R.string.sketch_prompt_select
@@ -327,8 +359,8 @@ fun SketchScreen(
                 shapes = ButtonDefaults.shapes(),
             ) { ActionLabel(Icons.AutoMirrored.Rounded.Undo, R.string.action_undo) }
             FilledTonalButton(
-                onClick = vm::deleteSelected,
-                enabled = sketch.target != null,
+                onClick = { if (pickedNote != null) vm.erase(pickedNote) else vm.deleteSelected() },
+                enabled = sketch.target != null || pickedNote != null,
                 modifier = action,
                 contentPadding = ActionPadding,
                 shapes = ButtonDefaults.shapes(),
@@ -359,6 +391,14 @@ fun SketchScreen(
 }
 
 private val ActionPadding = PaddingValues(horizontal = 8.dp)
+
+/** What the field under the canvas is typing. */
+private sealed interface Typing {
+    data class Length(val side: SideRef) : Typing
+
+    /** A new note's text, to go [at] a spot, or the new text of note [id]. */
+    data class Text(val at: Pt, val id: Long? = null, val initial: String = "") : Typing
+}
 
 /**
  * Back, the sketch's [title], exporting it as an image, and the connection [pill]. Tapping the title edits the sketch's
@@ -449,20 +489,54 @@ internal fun LengthField(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length)))
-    }
+    InlineField(
+        initial = TextFieldValue(initial, TextRange(0, initial.length)),
+        label = R.string.slot_length,
+        keyboard = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+        onDone = onDone,
+        onCancel = onCancel,
+        modifier = modifier,
+        valid = valid,
+        suffix = unit,
+    )
+}
+
+/** A note's one line of text, opened with the keyboard up; [onDone] gets the text when the user confirms it. */
+@Composable
+internal fun NoteField(initial: String, onDone: (String) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+    InlineField(
+        initial = TextFieldValue(initial, TextRange(initial.length)),
+        label = R.string.sketch_note,
+        keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+        onDone = onDone,
+        onCancel = onCancel,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun InlineField(
+    initial: TextFieldValue,
+    label: Int,
+    keyboard: KeyboardOptions,
+    onDone: (String) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier,
+    valid: (String) -> Boolean = { true },
+    suffix: String? = null,
+) {
+    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
-            label = { Text(stringResource(R.string.slot_length)) },
-            suffix = { Text(unit) },
+            label = { Text(stringResource(label)) },
+            suffix = suffix?.let { { Text(it) } },
             isError = text.text.isNotBlank() && !valid(text.text),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            keyboardOptions = keyboard,
             keyboardActions = KeyboardActions(onDone = { onDone(text.text) }),
             modifier = Modifier.weight(1f).focusRequester(focus),
         )
@@ -475,7 +549,6 @@ internal fun LengthField(
     }
 }
 
-/** Icon over label, so three actions fit side by side on a narrow phone. */
 /** The sketch's total area, over the canvas's corner where the top bar has no room for it in every language. */
 @Composable
 internal fun AreaBadge(text: String, modifier: Modifier = Modifier) {
@@ -484,6 +557,7 @@ internal fun AreaBadge(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** Icon over label, so three actions fit side by side on a narrow phone. */
 @Composable
 internal fun ActionLabel(icon: ImageVector, label: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -499,26 +573,29 @@ internal fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, 
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
+        val last = SketchTool.entries.lastIndex
         SketchTool.entries.forEachIndexed { i, t ->
             ToggleButton(
                 checked = t == selected,
                 onCheckedChange = { onSelect(t) },
                 modifier = Modifier
-                    .weight(1f)
+                    // The rectangle's name is the longest in most languages; with icons too it had no room left.
+                    .weight(if (t == SketchTool.RECT) 1.4f else 1f)
                     .height(48.dp)
                     .semantics { role = Role.RadioButton },
-                shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                shapes = when (i) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    last -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                contentPadding = PaddingValues(horizontal = 12.dp),
             ) {
-                Icon(
-                    if (t == SketchTool.LINE) Icons.Rounded.HorizontalRule else Icons.Rounded.CropSquare,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                FitText(
-                    stringResource(if (t == SketchTool.LINE) R.string.sketch_tool_line else R.string.sketch_tool_rect),
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                val label = when (t) {
+                    SketchTool.LINE -> R.string.sketch_tool_line
+                    SketchTool.RECT -> R.string.sketch_tool_rect
+                    SketchTool.TEXT -> R.string.sketch_tool_text
+                }
+                FitText(stringResource(label), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -543,8 +620,9 @@ private sealed interface Touch {
 /**
  * The sketch over its [background]: a plan's dot grid, or [photo] once it has loaded. One finger draws with [tool] or,
  * without moving, taps a side to select it and double-taps it to [onEdit] it; holding a shape picks it up to drag it.
- * Two fingers pan and zoom, never past a photo's edges. Each increment of [fits] frames the whole sketch, or the whole
- * photo.
+ * A tap picks a note and a double tap rewrites it. With the text tool a tap places a note, [marker] showing where until
+ * it is written, and one finger pans. Two fingers pan and zoom, never past a photo's edges. Each increment of [fits]
+ * frames the whole sketch, or the whole photo.
  */
 @Composable
 internal fun SketchCanvas(
@@ -554,9 +632,14 @@ internal fun SketchCanvas(
     tool: SketchTool,
     formatter: Formatter,
     fits: Int,
+    picked: Long?,
+    marker: Pt?,
     onDraw: (Pt, Pt) -> Unit,
     onSelect: (SideRef) -> Unit,
     onEdit: (SideRef) -> Unit,
+    onPick: (Long?) -> Unit,
+    onPlace: (Pt) -> Unit,
+    onWrite: (Note) -> Unit,
     onMove: (Long, Pt) -> Unit,
     onPickUp: () -> Unit,
     onTouch: () -> Unit,
@@ -567,6 +650,7 @@ internal fun SketchCanvas(
     val snapReach = with(density) { 20.dp.toPx() }
     val alignReach = with(density) { 15.dp.toPx() }
     val tapReach = with(density) { 24.dp.toPx() }
+    val noteReach = with(density) { 8.dp.toPx() }
     val minDotGap = with(density) { MinDotGap.toPx() }
     val padding = with(density) { FitPadding.toPx() }
     // Screen pixels per unit of the sketch, a plan's millimetre or a photo's pixel.
@@ -577,6 +661,10 @@ internal fun SketchCanvas(
     var framed by rememberSaveable { mutableStateOf(background == Background.Plan) }
     var gesture by remember { mutableStateOf<Touch?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    val scheme = MaterialTheme.colorScheme
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val labels = remember(measurer, labelStyle, formatter) { SketchLabels(measurer, labelStyle, formatter) }
 
     fun zoomRange(): ClosedFloatingPointRange<Float> = when (background) {
         Background.Plan -> spacing * MIN_SCALE / GRID_MM..spacing * MAX_SCALE / GRID_MM
@@ -603,6 +691,7 @@ internal fun SketchCanvas(
             Background.Plan -> fitView(
                 sketch.shapes.flatMap { it.points }, w, h, padding,
                 zoomRange().start..spacing * FIT_MAX_SCALE / GRID_MM,
+                with(density) { noteBoxes(sketch.shapes, labels) },
             )
             is Background.Photo -> fitView(listOf(Pt(0, 0), Pt(background.width, background.height)), w, h, 0f, zoomRange())
         } ?: return
@@ -644,11 +733,11 @@ internal fun SketchCanvas(
     val move by rememberUpdatedState(onMove)
     val pickUp by rememberUpdatedState(onPickUp)
     val touch by rememberUpdatedState(onTouch)
+    val pick by rememberUpdatedState(onPick)
+    val place by rememberUpdatedState(onPlace)
+    val write by rememberUpdatedState(onWrite)
+    val currentLabels by rememberUpdatedState(labels)
 
-    val scheme = MaterialTheme.colorScheme
-    val measurer = rememberTextMeasurer()
-    val labelStyle = MaterialTheme.typography.labelLarge
-    val labels = remember(measurer, labelStyle, formatter) { SketchLabels(measurer, labelStyle, formatter) }
     val colors = when (background) {
         Background.Plan -> planColors(scheme)
         is Background.Photo -> photoColors(scheme)
@@ -681,6 +770,12 @@ internal fun SketchCanvas(
                     // Lining a rectangle's far corner up with its first would flatten it.
                     fun drawFrom(start: Pt) = start.takeIf { currentTool == SketchTool.LINE }
                     fun sideAtDown() = world(down.position).let { current.sideAt(it.x, it.y, tapReach * unitsPerPx()) }
+                    fun noteAtDown(): Note? {
+                        val view = SketchView(originX, originY, pxPerUnit)
+                        return current.shapes.filterIsInstance<Note>().lastOrNull {
+                            noteBox(it, view, noteText(it, currentLabels)).inflate(noteReach).contains(down.position)
+                        }
+                    }
 
                     var state: Touch = Touch.Pending
                     // Past the long-press wait, or a double tap, which never picks a shape up.
@@ -695,7 +790,7 @@ internal fun SketchCanvas(
                         }
                         if (event == null) {
                             held = true
-                            world(down.position).let { current.shapeAt(it.x, it.y, tapReach * unitsPerPx()) }?.let {
+                            (noteAtDown()?.id ?: world(down.position).let { current.shapeAt(it.x, it.y, tapReach * unitsPerPx()) })?.let {
                                 state = Touch.Carrying(it)
                                 gesture = state
                                 pickUp()
@@ -726,13 +821,14 @@ internal fun SketchCanvas(
                         val change = event.changes.firstOrNull { it.id == down.id } ?: continue
                         val moved = (change.position - down.position).getDistance() > viewConfiguration.touchSlop
                         state = when (val now = state) {
-                            Touch.Pending ->
-                                if (moved && !second) {
+                            Touch.Pending -> when {
+                                !moved || second -> now
+                                currentTool == SketchTool.TEXT -> Touch.Viewing
+                                else -> {
                                     val start = snap(down.position).at
                                     Touch.Drawing(start, snap(change.position, drawFrom(start)))
-                                } else {
-                                    now
                                 }
+                            }
                             is Touch.Drawing -> now.copy(end = snap(change.position, drawFrom(now.start)))
                             is Touch.Carrying ->
                                 if (!moved && !now.moved) {
@@ -752,14 +848,22 @@ internal fun SketchCanvas(
                     when (val end = state) {
                         Touch.Viewing -> Unit
                         is Touch.Drawing -> draw(end.start, end.end.at)
-                        is Touch.Carrying -> if (end.moved) move(end.id, end.shift) else select(sideAtDown() ?: SideRef(end.id, 0))
+                        is Touch.Carrying -> when {
+                            end.moved -> move(end.id, end.shift)
+                            current.shapes.any { it.id == end.id && it is Note } -> pick(end.id)
+                            else -> select(sideAtDown() ?: SideRef(end.id, 0))
+                        }
                         Touch.Pending -> {
-                            val side = sideAtDown()
-                            if (second) {
-                                side?.let(edit)
-                            } else {
-                                side?.let(select)
-                                if (!held) lastTap = lastAt to down.position
+                            val note = noteAtDown()
+                            when {
+                                second -> note?.let(write) ?: sideAtDown()?.let(edit)
+                                currentTool == SketchTool.TEXT -> note?.let(write) ?: world(down.position).let {
+                                    place(Pt(it.x.roundToInt(), it.y.roundToInt()))
+                                }
+                                else -> {
+                                    if (note != null) pick(note.id) else sideAtDown()?.let(select) ?: pick(null)
+                                    if (!held) lastTap = lastAt to down.position
+                                }
                             }
                         }
                     }
@@ -789,7 +893,11 @@ internal fun SketchCanvas(
 
         val carried = gesture as? Touch.Carrying
         val shapes = current.shapes.map { s -> if (s.id == carried?.id) s.mapPoints { it + carried.shift } else s }
-        drawShapes(shapes, view, colors, labels, target = current.target, carried = carried?.id)
+        drawShapes(shapes, view, colors, labels, target = current.target, picked = picked, carried = carried?.id)
+        marker?.let {
+            colors.halo?.let { halo -> drawCircle(halo, 8.dp.toPx(), view.at(it)) }
+            drawCircle(colors.raised, 6.dp.toPx(), view.at(it))
+        }
 
         (gesture as? Touch.Drawing)?.let { (a, end) ->
             val guide = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))

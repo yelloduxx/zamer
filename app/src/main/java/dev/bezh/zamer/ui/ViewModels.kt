@@ -16,6 +16,7 @@ import dev.bezh.zamer.data.HistoryEntry
 import dev.bezh.zamer.data.Settings
 import dev.bezh.zamer.domain.Background
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.Note
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Reading
 import dev.bezh.zamer.domain.Rect
@@ -130,7 +131,7 @@ private const val RECENT_CHIPS = 10
 
 // ------------------------------------------------------------------- sketch
 
-enum class SketchTool { LINE, RECT }
+enum class SketchTool { LINE, RECT, TEXT }
 
 data class SketchUiState(
     /** Null until the stored sketches have been read; newest first. */
@@ -225,8 +226,20 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
 
     fun draw(tool: SketchTool, a: Pt, b: Pt) {
         val id = System.nanoTime()
-        edit { it.add(if (tool == SketchTool.LINE) Segment(id, a, b) else Rect(id, a, b)) }
+        val shape = when (tool) {
+            SketchTool.LINE -> Segment(id, a, b)
+            SketchTool.RECT -> Rect(id, a, b)
+            SketchTool.TEXT -> return
+        }
+        edit { it.add(shape) }
     }
+
+    fun note(at: Pt, text: String) = edit { it.add(Note(System.nanoTime(), at, text.trim())) }
+
+    fun write(id: Long, text: String) = edit { it.write(id, text) }
+
+    /** Deletes the shape [id], such as a picked note. */
+    fun erase(id: Long) = edit { it.delete(id) }
 
     fun select(ref: SideRef) = edit { it.select(ref) }
 

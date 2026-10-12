@@ -3,6 +3,7 @@ package dev.bezh.zamer.ui
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect as Bounds
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -13,9 +14,14 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.bezh.zamer.domain.Formatter
+import dev.bezh.zamer.domain.Note
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.SideRef
@@ -28,8 +34,8 @@ internal data class SketchView(val originX: Float, val originY: Float, val pxPer
 }
 
 /**
- * The view that centres [points] in a [width] by [height] area, [padding] clear of its edges, with the pixels per
- * unit kept in [zoom]; null with no points.
+ * The view that centres [points], and [boxes] that keep their size in pixels around their spots, in a [width] by
+ * [height] area, [padding] clear of its edges, with the pixels per unit kept in [zoom]; null with nothing to show.
  */
 internal fun fitView(
     points: List<Pt>,
@@ -37,17 +43,41 @@ internal fun fitView(
     height: Float,
     padding: Float,
     zoom: ClosedFloatingPointRange<Float> = 0f..Float.MAX_VALUE,
+    boxes: List<Pair<Pt, Size>> = emptyList(),
 ): SketchView? {
-    if (points.isEmpty()) return null
-    val left = points.minOf { it.x }
-    val right = points.maxOf { it.x }
-    val top = points.minOf { it.y }
-    val bottom = points.maxOf { it.y }
+    val k = fitZoom(points, boxes, width - 2 * padding, height - 2 * padding, zoom) ?: return null
+    val reach = reach(points, boxes, k)
+    return SketchView(width / 2f - reach.center.x, height / 2f - reach.center.y, k)
+}
+
+/**
+ * The most pixels per unit, within [zoom], at which [points] and [boxes] span no more than [width] by [height]; null
+ * with nothing to show.
+ */
+internal fun fitZoom(points: List<Pt>, boxes: List<Pair<Pt, Size>>, width: Float, height: Float, zoom: ClosedFloatingPointRange<Float>): Float? {
+    val spots = points + boxes.map { it.first }
+    if (spots.isEmpty()) return null
     // A straight line has no extent across; the other direction alone decides the zoom.
-    val across = (width - 2 * padding) / (right - left).coerceAtLeast(1)
-    val down = (height - 2 * padding) / (bottom - top).coerceAtLeast(1)
-    val k = minOf(across, down).coerceIn(zoom)
-    return SketchView(width / 2f - (left + right) / 2f * k, height / 2f - (top + bottom) / 2f * k, k)
+    val across = width / (spots.maxOf { it.x } - spots.minOf { it.x }).coerceAtLeast(1)
+    val down = height / (spots.maxOf { it.y } - spots.minOf { it.y }).coerceAtLeast(1)
+    var most = minOf(across, down).coerceIn(zoom)
+    fun fits(k: Float) = reach(points, boxes, k).let { it.width <= width && it.height <= height }
+    if (fits(most)) return most
+    // Boxes keep their size as the drawing shrinks, so search for the zoom that leaves them room.
+    var least = zoom.start
+    if (!fits(least)) return least
+    repeat(32) {
+        val k = (least + most) / 2
+        if (fits(k)) least = k else most = k
+    }
+    return least
+}
+
+/** How far [points] and [boxes] reach, in pixels from the sketch's (0, 0), at [k] pixels per unit. */
+internal fun reach(points: List<Pt>, boxes: List<Pair<Pt, Size>>, k: Float): Bounds {
+    val all = points.map { Bounds(Offset(it.x * k, it.y * k), Size.Zero) } +
+        boxes.map { (p, size) -> Bounds(Offset(p.x * k - size.width / 2, p.y * k - size.height / 2), size) }
+    return all.reduce { a, b -> Bounds(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom)) }
 }
 
 /** The colours a sketch is drawn in. [halo], if any, outlines lines so they stand out on a photo. */
@@ -87,15 +117,15 @@ internal fun photoColors(scheme: ColorScheme) = SketchColors(
     halo = Color(0x8C000000),
 )
 
-/** How side and area labels are worded and set. */
+/** How side and area labels and notes are worded and set. */
 internal class SketchLabels(val measurer: TextMeasurer, val style: TextStyle, val formatter: Formatter)
 
 /** Side labels shrink no smaller than this to fit a short side. */
 private val MinLabelSize = 9.sp
 
 /**
- * Draws [shapes] where [view] puts them, measured sides solid and the rest dashed, with [labels] unless they are null.
- * The [target] side and the [carried] shape are raised and drawn over the others.
+ * Draws [shapes] where [view] puts them, measured sides solid and the rest dashed, with [labels] and notes unless
+ * [labels] is null. The [target] side, the [picked] note and the [carried] shape are raised and drawn over the others.
  */
 internal fun DrawScope.drawShapes(
     shapes: List<SketchShape>,
@@ -103,6 +133,7 @@ internal fun DrawScope.drawShapes(
     colors: SketchColors,
     labels: SketchLabels?,
     target: SideRef? = null,
+    picked: Long? = null,
     carried: Long? = null,
     stroke: Float = 3.dp.toPx(),
 ) {
@@ -126,8 +157,50 @@ internal fun DrawScope.drawShapes(
             pathEffect = if (measured) null else dash,
         )
     }
-    if (labels != null) drawLabels(shapes, view, colors, labels, target)
+    if (labels != null) {
+        drawLabels(shapes, view, colors, labels, target)
+        drawNotes(shapes.filterIsInstance<Note>(), view, colors, labels, raised = setOfNotNull(picked, carried))
+    }
 }
+
+private fun DrawScope.drawNotes(notes: List<Note>, view: SketchView, colors: SketchColors, labels: SketchLabels, raised: Set<Long>) {
+    notes.sortedBy { it.id in raised }.forEach { note ->
+        val up = note.id in raised
+        val text = noteText(note, labels, if (up) colors.onSelected else colors.onLabel)
+        val box = noteBox(note, view, text)
+        drawRoundRect(if (up) colors.selected else colors.label, box.topLeft, box.size, CornerRadius(NoteCorner.toPx()))
+        drawText(text, topLeft = Offset(box.center.x - text.size.width / 2f, box.center.y - text.size.height / 2f))
+    }
+}
+
+/** A note wraps at this width, whatever the zoom, so a long one stays a block rather than a strip. */
+private val NoteWidth = 200.dp
+private const val NOTE_LINES = 3
+private val NoteCorner = 8.dp
+
+/** [note]'s text laid out as it is drawn: the same size on screen at any zoom. */
+internal fun Density.noteText(note: Note, labels: SketchLabels, color: Color = Color.Unspecified): TextLayoutResult =
+    labels.measurer.measure(
+        note.text,
+        labels.style.copy(color = color, textAlign = TextAlign.Center),
+        overflow = TextOverflow.Ellipsis,
+        maxLines = NOTE_LINES,
+        constraints = Constraints(maxWidth = NoteWidth.roundToPx()),
+        density = this,
+    )
+
+/** The box [text] is drawn on, for a note's spot to sit in its middle. */
+internal fun Density.noteSize(text: TextLayoutResult) = Size(text.size.width + 16.dp.toPx(), text.size.height + 8.dp.toPx())
+
+/** Where [note], laid out as [text], is drawn in [view]; also where a finger finds it. */
+internal fun Density.noteBox(note: Note, view: SketchView, text: TextLayoutResult): Bounds {
+    val size = noteSize(text)
+    return Bounds(view.at(note.at) - Offset(size.width / 2, size.height / 2), size)
+}
+
+/** Each note's spot and the size of its box, for framing a sketch with its notes whole. */
+internal fun Density.noteBoxes(shapes: List<SketchShape>, labels: SketchLabels): List<Pair<Pt, Size>> =
+    shapes.filterIsInstance<Note>().map { it.at to noteSize(noteText(it, labels)) }
 
 private fun DrawScope.drawLabels(shapes: List<SketchShape>, view: SketchView, colors: SketchColors, labels: SketchLabels, target: SideRef?) {
     shapes.forEach { s ->

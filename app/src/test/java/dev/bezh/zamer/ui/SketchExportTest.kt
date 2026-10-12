@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.sp
 import androidx.test.core.app.ApplicationProvider
 import dev.bezh.zamer.domain.Background
 import dev.bezh.zamer.domain.Formatter
+import dev.bezh.zamer.domain.Note
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.Segment
@@ -64,6 +65,18 @@ class SketchExportTest {
         assertEquals(1600 to 1200, image.width to image.height)
         assertEquals("the photo is behind the drawing", Color.rgb(40, 120, 200), image.getPixel(5, 5))
         assertEquals("the line is over it", Color.WHITE, image.getPixel(300, 600))
+    }
+
+    @Test
+    fun aNoteAtTheEdgeOfAPlanIsExportedWhole() {
+        val wall = Segment(1, Pt(0, 0), Pt(4000, 0))
+        val sketch = Sketch().add(wall).put(4000).add(Note(2, Pt(0, 1000), "Radiator under the window"))
+        val image = render(SketchDoc(1, 1, sketch = sketch))!!
+        save(image, "export-note")
+        assertEquals(4096, image.width)
+        val noteColor = Color.rgb(0xF7, 0xE4, 0xE1)
+        assertTrue("the note is drawn", (0 until image.height).any { y -> (0 until 1000).any { image.getPixel(it, y) == noteColor } })
+        assertTrue("nothing runs off the left edge", (0 until image.height).all { image.getPixel(0, it) == Color.WHITE })
     }
 
     @Test

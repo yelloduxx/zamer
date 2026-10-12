@@ -42,7 +42,6 @@ private enum class Tab(val label: Int) {
     Settings(R.string.tab_settings),
 }
 
-/** Distinguishes "still reading the store" from "nothing paired". */
 private sealed interface PairedState {
     data object Loading : PairedState
     data class Loaded(val device: PairedDevice?) : PairedState
@@ -65,7 +64,6 @@ fun ZamerRoot(container: AppContainer) {
 
             val device = (state as PairedState.Loaded).device
             var repairing by rememberSaveable { mutableStateOf(false) }
-            // Pairing again yields a new token; leave the pairing screen once it arrives.
             LaunchedEffect(device?.tokenHex) { repairing = false }
 
             if (device == null || repairing) {

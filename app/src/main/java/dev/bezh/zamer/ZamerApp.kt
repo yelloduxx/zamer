@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 
-/** The screen that device readings are measuring for. */
 enum class ReadingTarget { MEASURE, SKETCH }
 
 class AppContainer(app: Application) {
@@ -32,7 +31,6 @@ class AppContainer(app: Application) {
 
     val readingTarget = MutableStateFlow(ReadingTarget.MEASURE)
 
-    // The target is read once per reading, so switching screens can't hand one reading to both.
     private val routed = repository.readings.map { readingTarget.value to it }.shareIn(scope, SharingStarted.Eagerly)
 
     fun readings(to: ReadingTarget): Flow<Reading> = routed.filter { it.first == to }.map { it.second }

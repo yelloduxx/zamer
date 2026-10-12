@@ -48,7 +48,6 @@ class PhotoStoreTest {
         assertEquals(null, photos.load(photo.file))
     }
 
-    /** A [width] by [height] JPEG whose EXIF asks for [exifOrientation]. */
     private fun jpeg(width: Int, height: Int, exifOrientation: Int): File {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
         val plain = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 80, it) }.toByteArray()

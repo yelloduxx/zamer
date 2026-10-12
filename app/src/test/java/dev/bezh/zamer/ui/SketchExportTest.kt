@@ -48,7 +48,6 @@ class SketchExportTest {
         val room = Sketch().add(Rect(1, Pt(0, 0), Pt(4000, 3000))).put(4000).put(3000).add(Segment(2, Pt(4000, 0), Pt(4300, 0))).put(300)
         val image = render(SketchDoc(1, 1, "Kitchen", sketch = room), caption = "Kitchen · 12.00 m²")!!
         save(image, "export-plan")
-        // 4300 by 3000 mm, 56 dp of margin round it at 6.4 px per dp.
         val margin = 56 * 4096 / 640f
         assertEquals(4096, image.width)
         assertEquals((3000 * (4096 - 2 * margin) / 4300 + 2 * margin).toInt(), image.height)

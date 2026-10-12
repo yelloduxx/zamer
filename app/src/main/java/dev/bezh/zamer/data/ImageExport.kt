@@ -12,10 +12,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
-/** A file name made of [title], keeping letters, digits, spaces, dots, dashes and underscores. */
 fun imageName(title: String) = "Zamer " + title.replace(Regex("[^\\p{L}\\p{N} ._-]"), "_").trim()
 
-/** Saves [bitmap] as a PNG named [name] in Pictures/Zamer, which needs no permission; false if it couldn't. */
 suspend fun saveToGallery(context: Context, bitmap: Bitmap, name: String): Boolean = withContext(Dispatchers.IO) {
     val resolver = context.contentResolver
     val values = ContentValues().apply {
@@ -36,7 +34,6 @@ suspend fun saveToGallery(context: Context, bitmap: Bitmap, name: String): Boole
     }
 }
 
-/** Writes [bitmap] as a PNG named [name] to the cache and offers it to the share sheet; false if it couldn't. */
 suspend fun shareImage(context: Context, bitmap: Bitmap, name: String): Boolean {
     val file = withContext(Dispatchers.IO) {
         val dir = File(context.cacheDir, "exports").apply { deleteRecursively() }

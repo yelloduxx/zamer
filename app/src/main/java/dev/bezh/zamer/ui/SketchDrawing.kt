@@ -28,15 +28,10 @@ import dev.bezh.zamer.domain.SideRef
 import dev.bezh.zamer.domain.SketchShape
 import kotlin.math.atan2
 
-/** Where a sketch's (0, 0) lands, in pixels, and how many pixels one of its units takes. */
 internal data class SketchView(val originX: Float, val originY: Float, val pxPerUnit: Float) {
     fun at(p: Pt) = Offset(originX + p.x * pxPerUnit, originY + p.y * pxPerUnit)
 }
 
-/**
- * The view that centres [points], and [boxes] that keep their size in pixels around their spots, in a [width] by
- * [height] area, [padding] clear of its edges, with the pixels per unit kept in [zoom]; null with nothing to show.
- */
 internal fun fitView(
     points: List<Pt>,
     width: Float,
@@ -50,20 +45,14 @@ internal fun fitView(
     return SketchView(width / 2f - reach.center.x, height / 2f - reach.center.y, k)
 }
 
-/**
- * The most pixels per unit, within [zoom], at which [points] and [boxes] span no more than [width] by [height]; null
- * with nothing to show.
- */
 internal fun fitZoom(points: List<Pt>, boxes: List<Pair<Pt, Size>>, width: Float, height: Float, zoom: ClosedFloatingPointRange<Float>): Float? {
     val spots = points + boxes.map { it.first }
     if (spots.isEmpty()) return null
-    // A straight line has no extent across; the other direction alone decides the zoom.
     val across = width / (spots.maxOf { it.x } - spots.minOf { it.x }).coerceAtLeast(1)
     val down = height / (spots.maxOf { it.y } - spots.minOf { it.y }).coerceAtLeast(1)
     var most = minOf(across, down).coerceIn(zoom)
     fun fits(k: Float) = reach(points, boxes, k).let { it.width <= width && it.height <= height }
     if (fits(most)) return most
-    // Boxes keep their size as the drawing shrinks, so search for the zoom that leaves them room.
     var least = zoom.start
     if (!fits(least)) return least
     repeat(32) {
@@ -73,14 +62,12 @@ internal fun fitZoom(points: List<Pt>, boxes: List<Pair<Pt, Size>>, width: Float
     return least
 }
 
-/** How far [points] and [boxes] reach, in pixels from the sketch's (0, 0), at [k] pixels per unit. */
 internal fun reach(points: List<Pt>, boxes: List<Pair<Pt, Size>>, k: Float): Bounds {
     val all = points.map { Bounds(Offset(it.x * k, it.y * k), Size.Zero) } +
         boxes.map { (p, size) -> Bounds(Offset(p.x * k - size.width / 2, p.y * k - size.height / 2), size) }
     return all.reduce { a, b -> Bounds(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom)) }
 }
 
-/** The colours a sketch is drawn in. [halo], if any, outlines lines so they stand out on a photo. */
 internal data class SketchColors(
     val line: Color,
     val raised: Color,
@@ -104,7 +91,6 @@ internal fun planColors(scheme: ColorScheme) = SketchColors(
     onArea = scheme.onSecondaryContainer,
 )
 
-/** Light lines on dark pills, outlined, so they read on any photo. */
 internal fun photoColors(scheme: ColorScheme) = SketchColors(
     line = Color.White,
     raised = scheme.primary,
@@ -117,16 +103,10 @@ internal fun photoColors(scheme: ColorScheme) = SketchColors(
     halo = Color(0x8C000000),
 )
 
-/** How side and area labels and notes are worded and set. */
 internal class SketchLabels(val measurer: TextMeasurer, val style: TextStyle, val formatter: Formatter)
 
-/** Side labels shrink no smaller than this to fit a short side. */
 private val MinLabelSize = 9.sp
 
-/**
- * Draws [shapes] where [view] puts them, measured sides solid and the rest dashed, with [labels] and notes unless
- * [labels] is null. The [target] side, the [picked] note and the [carried] shape are raised and drawn over the others.
- */
 internal fun DrawScope.drawShapes(
     shapes: List<SketchShape>,
     view: SketchView,
@@ -173,12 +153,10 @@ private fun DrawScope.drawNotes(notes: List<Note>, view: SketchView, colors: Ske
     }
 }
 
-/** A note wraps at this width, whatever the zoom, so a long one stays a block rather than a strip. */
 private val NoteWidth = 200.dp
 private const val NOTE_LINES = 3
 private val NoteCorner = 8.dp
 
-/** [note]'s text laid out as it is drawn: the same size on screen at any zoom. */
 internal fun Density.noteText(note: Note, labels: SketchLabels, color: Color = Color.Unspecified): TextLayoutResult =
     labels.measurer.measure(
         note.text,
@@ -189,16 +167,13 @@ internal fun Density.noteText(note: Note, labels: SketchLabels, color: Color = C
         density = this,
     )
 
-/** The box [text] is drawn on, for a note's spot to sit in its middle. */
 internal fun Density.noteSize(text: TextLayoutResult) = Size(text.size.width + 16.dp.toPx(), text.size.height + 8.dp.toPx())
 
-/** Where [note], laid out as [text], is drawn in [view]; also where a finger finds it. */
 internal fun Density.noteBox(note: Note, view: SketchView, text: TextLayoutResult): Bounds {
     val size = noteSize(text)
     return Bounds(view.at(note.at) - Offset(size.width / 2, size.height / 2), size)
 }
 
-/** Each note's spot and the size of its box, for framing a sketch with its notes whole. */
 internal fun Density.noteBoxes(shapes: List<SketchShape>, labels: SketchLabels): List<Pair<Pt, Size>> =
     shapes.filterIsInstance<Note>().map { it.at to noteSize(noteText(it, labels)) }
 
@@ -210,7 +185,6 @@ private fun DrawScope.drawLabels(shapes: List<SketchShape>, view: SketchView, co
             val b = view.at(e.b)
             val selected = SideRef(s.id, side) == target
             val text = mm?.let { labels.formatter.length(it).toString() } ?: "?"
-            // Shrinks the text to fit a short side, and moves it off the side if even the smallest won't fit.
             val room = (b - a).getDistance()
             var style = labels.style.copy(color = if (selected) colors.onSelected else colors.onLabel)
             var layout = labels.measurer.measure(text, style, density = this)
@@ -235,7 +209,6 @@ private fun DrawScope.drawLabels(shapes: List<SketchShape>, view: SketchView, co
     }
 }
 
-/** Turns a line's angle so text along it never reads upside down; vertical text reads bottom to top. */
 private fun upright(degrees: Float) = when {
     degrees >= 90f -> degrees - 180f
     degrees < -90f -> degrees + 180f
@@ -244,10 +217,6 @@ private fun upright(degrees: Float) = when {
 
 private fun DrawScope.pillWidth(text: TextLayoutResult) = text.size.width + 12.dp.toPx()
 
-/**
- * [text] on a rounded pill centred on [center] and turned [degrees]; [beside] lifts it clear of the line under it,
- * which is outward for a rectangle's top and left sides.
- */
 internal fun DrawScope.pill(text: TextLayoutResult, center: Offset, degrees: Float, background: Color, beside: Boolean = false) {
     val w = pillWidth(text)
     val h = text.size.height + 4.dp.toPx()

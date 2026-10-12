@@ -126,23 +126,18 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
-/** On-screen spacing of the dots, [GRID_MM] apart, at zoom 1. */
 private val GridSpacing = 24.dp
 
-/** Dots closer than this on screen are thinned out to every few. */
 private val MinDotGap = 12.dp
 
-/** How many dot spacings apart the shown dots may be, from 0.5 m up to 10 m. */
 private val DotSteps = listOf(1, 2, 10, 20)
 
 private const val MIN_SCALE = 0.1f
 private const val MAX_SCALE = 4f
 
-/** Fitting a small sketch stops zooming in here, so a single short line doesn't fill the screen. */
 private const val FIT_MAX_SCALE = 2f
 private val FitPadding = 40.dp
 
-/** How far past fitting the whole photo it can be zoomed in. */
 private const val MAX_PHOTO_ZOOM = 8f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -159,12 +154,10 @@ fun SketchScreen(
         Formatter(ui.settings.units, ui.settings.decimals)
     }
     val haptics = LocalHapticFeedback.current
-    // The view model outlives this screen; a reading it took before the screen reopened must not buzz.
     val countOnEntry = remember { ui.assignedCount }
     LaunchedEffect(ui.assignedCount) {
         if (ui.assignedCount > countOnEntry && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
     }
-    // A sketch just started is stored a moment after it is opened.
     val doc = ui.open ?: return
     var tool by rememberSaveable { mutableStateOf(SketchTool.LINE) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
@@ -173,14 +166,12 @@ fun SketchScreen(
     val photo by produceState<ImageBitmap?>(null, doc.background) {
         value = (doc.background as? Background.Photo)?.let { vm.photo(it.file, Int.MAX_VALUE) }
     }
-    // A side being typed is also the target, so the typed value goes where a reading would.
     var editing by remember { mutableStateOf<Typing?>(null) }
     LaunchedEffect(sketch.target) {
         val typing = editing
         if (typing is Typing.Length && typing.side != sketch.target) editing = null
     }
     BackHandler(enabled = editing != null) { editing = null }
-    // Picking a note leaves the target alone, so a reading still measures the side it was waiting for.
     var picked by remember { mutableStateOf<Long?>(null) }
     val pickedNote = picked?.takeIf { id -> sketch.shapes.any { it.id == id } }
 
@@ -244,7 +235,6 @@ fun SketchScreen(
             )
         }
         Box(inset.weight(1f).fillMaxWidth()) {
-            // A view panned and zoomed for one sketch means nothing for another.
             key(doc.id) {
                 SketchCanvas(
                     sketch = sketch,
@@ -302,7 +292,6 @@ fun SketchScreen(
                         unit = formatter.length(0).unit,
                         valid = { formatter.parseLength(it) != null },
                         onDone = { text ->
-                            // A shown value is rounded; putting it back unchanged would nudge the drawing.
                             if (text.isNotBlank() && text.trim() == shown) {
                                 editing = null
                             } else {
@@ -392,18 +381,12 @@ fun SketchScreen(
 
 private val ActionPadding = PaddingValues(horizontal = 8.dp)
 
-/** What the field under the canvas is typing. */
 private sealed interface Typing {
     data class Length(val side: SideRef) : Typing
 
-    /** A new note's text, to go [at] a spot, or the new text of note [id]. */
     data class Text(val at: Pt, val id: Long? = null, val initial: String = "") : Typing
 }
 
-/**
- * Back, the sketch's [title], exporting it as an image, and the connection [pill]. Tapping the title edits the sketch's
- * [name] in its place.
- */
 @Composable
 internal fun SketchTopBar(
     title: String,
@@ -450,7 +433,6 @@ internal fun SketchTopBar(
     }
 }
 
-/** A button that offers to save the sketch as an image in the gallery or to share it. */
 @Composable
 private fun ExportMenu(onSave: () -> Unit, onShare: () -> Unit, enabled: Boolean) {
     var open by remember { mutableStateOf(false) }
@@ -479,7 +461,6 @@ private fun ExportMenu(onSave: () -> Unit, onShare: () -> Unit, enabled: Boolean
     }
 }
 
-/** A side's length typed in [unit], opened with the keyboard up; [onDone] gets the text when the user confirms it. */
 @Composable
 internal fun LengthField(
     initial: String,
@@ -501,7 +482,6 @@ internal fun LengthField(
     )
 }
 
-/** A note's one line of text, opened with the keyboard up; [onDone] gets the text when the user confirms it. */
 @Composable
 internal fun NoteField(initial: String, onDone: (String) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
     InlineField(
@@ -549,7 +529,6 @@ private fun InlineField(
     }
 }
 
-/** The sketch's total area, over the canvas's corner where the top bar has no room for it in every language. */
 @Composable
 internal fun AreaBadge(text: String, modifier: Modifier = Modifier) {
     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = modifier) {
@@ -557,7 +536,6 @@ internal fun AreaBadge(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Icon over label, so three actions fit side by side on a narrow phone. */
 @Composable
 internal fun ActionLabel(icon: ImageVector, label: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -579,7 +557,6 @@ internal fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, 
                 checked = t == selected,
                 onCheckedChange = { onSelect(t) },
                 modifier = Modifier
-                    // The rectangle's name is the longest in most languages; with icons too it had no room left.
                     .weight(if (t == SketchTool.RECT) 1.4f else 1f)
                     .height(48.dp)
                     .semantics { role = Role.RadioButton },
@@ -601,29 +578,16 @@ internal fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, 
     }
 }
 
-// ----------------------------------------------------------------- canvas
-
-/** What one finger on the sketch turned out to be doing. */
 private sealed interface Touch {
-    /** Down and still: not yet a stroke or a hold, and a tap if it lifts now. */
     data object Pending : Touch
 
     data class Drawing(val start: Pt, val end: Snap) : Touch
 
-    /** Holding shape [id] after a long press; once [moved], [shift] is where it would drop. */
     data class Carrying(val id: Long, val shift: Pt = Pt(0, 0), val moved: Boolean = false) : Touch
 
-    /** Two fingers: pan and zoom only. */
     data object Viewing : Touch
 }
 
-/**
- * The sketch over its [background]: a plan's dot grid, or [photo] once it has loaded. One finger draws with [tool] or,
- * without moving, taps a side to select it and double-taps it to [onEdit] it; holding a shape picks it up to drag it.
- * A tap picks a note and a double tap rewrites it. With the text tool a tap places a note, [marker] showing where until
- * it is written, and one finger pans. Two fingers pan and zoom, never past a photo's edges. Each increment of [fits]
- * frames the whole sketch, or the whole photo.
- */
 @Composable
 internal fun SketchCanvas(
     sketch: Sketch,
@@ -653,9 +617,7 @@ internal fun SketchCanvas(
     val noteReach = with(density) { 8.dp.toPx() }
     val minDotGap = with(density) { MinDotGap.toPx() }
     val padding = with(density) { FitPadding.toPx() }
-    // Screen pixels per unit of the sketch, a plan's millimetre or a photo's pixel.
     var pxPerUnit by rememberSaveable { mutableFloatStateOf(spacing / GRID_MM) }
-    // Where the sketch's (0, 0) sits on the canvas, in pixels.
     var originX by rememberSaveable { mutableFloatStateOf(spacing) }
     var originY by rememberSaveable { mutableFloatStateOf(spacing) }
     var framed by rememberSaveable { mutableStateOf(background == Background.Plan) }
@@ -674,7 +636,6 @@ internal fun SketchCanvas(
         }
     }
 
-    /** Keeps a photo filling the view along each side it is longer than the view, and centred along the others. */
     fun keepOnPhoto() {
         if (background !is Background.Photo) return
         fun clamp(origin: Float, extent: Float, room: Float) =
@@ -716,7 +677,6 @@ internal fun SketchCanvas(
             keepOnPhoto()
         }
     }
-    // Only a reading redraws shapes in place, and a long one can push a plan past the edge of the view.
     var shown by remember { mutableStateOf(sketch.shapes) }
     LaunchedEffect(sketch.shapes) {
         val before = shown
@@ -753,7 +713,6 @@ internal fun SketchCanvas(
             .background(if (grid != null) scheme.surfaceContainerLow else Color.Black)
             .onSizeChanged { canvasSize = it }
             .pointerInput(Unit) {
-                // When and where the last tap lifted, so a second tap soon after nearby makes a double tap.
                 var lastTap: Pair<Long, Offset>? = null
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -767,7 +726,6 @@ internal fun SketchCanvas(
                     fun step() = grid?.let { it * dotStep(it * pxPerUnit, minDotGap) }
                     fun snap(p: Offset, from: Pt? = null) =
                         world(p).let { current.snap(it.x, it.y, snapReach * unitsPerPx(), alignReach * unitsPerPx(), step(), from) }
-                    // Lining a rectangle's far corner up with its first would flatten it.
                     fun drawFrom(start: Pt) = start.takeIf { currentTool == SketchTool.LINE }
                     fun sideAtDown() = world(down.position).let { current.sideAt(it.x, it.y, tapReach * unitsPerPx()) }
                     fun noteAtDown(): Note? {
@@ -778,7 +736,6 @@ internal fun SketchCanvas(
                     }
 
                     var state: Touch = Touch.Pending
-                    // Past the long-press wait, or a double tap, which never picks a shape up.
                     var held = second
                     var lastAt = down.uptimeMillis
                     while (true) {
@@ -800,11 +757,9 @@ internal fun SketchCanvas(
                         lastAt = event.changes.first().uptimeMillis
                         val pressed = event.changes.count { it.pressed }
                         if (pressed == 0) break
-                        // Once a second finger lands, the rest of the gesture only moves the view.
                         if (state == Touch.Viewing || pressed > 1) {
                             state = Touch.Viewing
                             gesture = null
-                            // A finger landing or lifting shifts the centroid; skip that frame instead of jumping.
                             if (event.changes.all { it.pressed == it.previousPressed }) {
                                 val centroid = event.calculateCentroid()
                                 val pan = event.calculatePan()
@@ -915,5 +870,4 @@ internal fun SketchCanvas(
     }
 }
 
-/** How many dot spacings apart to show dots [dotPx] apart at full density, so they stay at least [minGap] apart. */
 private fun dotStep(dotPx: Float, minGap: Float) = DotSteps.firstOrNull { dotPx * it >= minGap } ?: DotSteps.last()

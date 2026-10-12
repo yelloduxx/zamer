@@ -17,19 +17,12 @@ import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.SketchDoc
 import kotlin.math.roundToInt
 
-/** The longest side of an exported plan, in pixels. */
 private const val MAX_EXPORT_PX = 4096
 
-/**
- * Lines and labels in an export are sized as on a phone screen this many dp across the image's long side, so they keep
- * their proportion to the drawing at any resolution.
- */
 private const val EXPORT_LONG_SIDE_DP = 640f
 
-/** Room around a plan's shapes and notes, for labels set beside short sides and for the caption. */
 private val PlanMargin = 56.dp
 
-/** A plan exports on white paper in the app's own light colours, whatever the theme or wallpaper. */
 private val Paper = Color.White
 private val PaperColors = SketchColors(
     line = Color(0xFF231918),
@@ -42,11 +35,6 @@ private val PaperColors = SketchColors(
     onArea = Color(0xFF410002),
 )
 
-/**
- * [doc] drawn into a new bitmap with its labels, notes and, if any, [caption] in the bottom corner. A plan is cropped to
- * its shapes and notes with a margin, its long side [MAX_EXPORT_PX]; a photo sketch is the whole [photo] at its own resolution with
- * the drawing over it. Null when there is nothing to draw: a plan without shapes, or a photo that couldn't be loaded.
- */
 internal fun renderSketch(
     doc: SketchDoc,
     photo: Bitmap?,

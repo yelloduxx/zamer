@@ -76,16 +76,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/**
- * Renders the space-constrained controls in each shipped locale at font scale 1.0 and 1.3,
- * writes PNGs to app/build/outputs/roborazzi/, and fails if any label wraps, is clipped or
- * ellipsized, or is pushed past the screen edge. Labels may still shrink through autoSize, so
- * look at the PNGs as well.
- */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-// SDK 35+ sandboxes need Java 21; the build runs on 17.
 @Config(sdk = [34])
 abstract class LabelFitTest(private val locale: String) {
     // Robolectric reads the app's manifest, which never lists the compose test host; register it here
@@ -121,7 +114,6 @@ abstract class LabelFitTest(private val locale: String) {
     fun sketch() = render("sketch") {
         AreaBadge(stringResource(R.string.sketch_total_area, formatter.area(1234.5).toString()), inset)
         ToolSelector(SketchTool.LINE, onSelect = {}, modifier = inset)
-        // Mirrors the action row inlined in SketchScreen.
         Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val action = Modifier.weight(1f).height(72.dp)
             val padding = PaddingValues(horizontal = 8.dp)
@@ -139,7 +131,6 @@ abstract class LabelFitTest(private val locale: String) {
 
     @Test
     fun sketchTopBar() = render("sketch-topbar") {
-        // Once per pill state that carries a button.
         listOf(LinkState.NeedsPermission, LinkState.BluetoothOff, LinkState.NeedsRepair, LinkState.NotPaired).forEach { link ->
             SketchTopBar(
                 title = stringResource(R.string.sketch_title),
@@ -211,7 +202,6 @@ abstract class LabelFitTest(private val locale: String) {
         needAction.forEach { link ->
             Row(inset) { ConnectionPill(link, onRequestPermission = {}, onEnableBluetooth = {}, onPair = {}) }
         }
-        // The compact form sits in the sketch top bar, after the back button and the title.
         needAction.forEach { link ->
             Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 ConnectionPill(link, onRequestPermission = {}, onEnableBluetooth = {}, onPair = {}, compact = true)
@@ -222,7 +212,6 @@ abstract class LabelFitTest(private val locale: String) {
     @Test
     fun settingsDevice() = render("settings-device") {
         Column(inset, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Mirrors the paired-device card inlined in SettingsScreen.
             SettingsCard(stringResource(R.string.settings_device)) {
                 Text("HOTO", style = MaterialTheme.typography.titleLarge)
                 DeviceActions(onRepair = {}, onForget = {})
@@ -247,7 +236,6 @@ abstract class LabelFitTest(private val locale: String) {
     @Test
     fun settingsDisplay() = render("settings-display") {
         Column(inset, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Mirrors the decimal-places toggles inlined in SettingsScreen; only the title is translated.
             SettingsCard(stringResource(R.string.settings_precision)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
                     (1..3).forEach { n ->
@@ -291,7 +279,6 @@ abstract class LabelFitTest(private val locale: String) {
 
     @Test
     fun navigationBar() = render("navigation") {
-        // Mirrors the bottom bar inlined in MainScaffold.
         ShortNavigationBar {
             listOf(
                 R.string.tab_measure to Icons.Rounded.Straighten,
@@ -310,7 +297,6 @@ abstract class LabelFitTest(private val locale: String) {
 
     @Test
     fun history() = render("history") {
-        // Mirrors the header row inlined in HistoryScreen.
         Row(
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -341,7 +327,6 @@ abstract class LabelFitTest(private val locale: String) {
         report(problems)
     }
 
-    /** Renders [content], opens the menu behind the control labelled or described by [opener], and checks its items too. */
     private fun renderMenu(name: String, opener: Int, content: @Composable () -> Unit) {
         render(name, content)
         val label = compose.activity.getString(opener)
@@ -355,7 +340,6 @@ abstract class LabelFitTest(private val locale: String) {
         assertTrue(problems.joinToString("\n") { it.second }, problems.isEmpty())
     }
 
-    /** Each label that does not fit on one line in the width it got, as its text and the reason. */
     private fun labelsThatDoNotFit(): List<Pair<String, String>> {
         val screenWidth = compose.onAllNodes(isRoot()).fetchSemanticsNodes().maxOf { it.size.width }
         val labels = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
@@ -364,8 +348,6 @@ abstract class LabelFitTest(private val locale: String) {
             node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
             val layout = layouts.single()
             val text = layout.layoutInput.text.text
-            // didOverflowWidth and hasVisualOverflow trip on labels that fit, so compare the label's
-            // single-line natural width with the width it was given.
             val needed = layout.multiParagraph.intrinsics.maxIntrinsicWidth
             val given = layout.layoutInput.constraints.maxWidth
             val problem = when {

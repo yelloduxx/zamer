@@ -74,7 +74,6 @@ import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.SketchDoc
 import kotlin.math.roundToInt
 
-/** The saved sketches, newest first, under the actions that start a new one. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SketchListScreen(vm: SketchViewModel, onBack: () -> Unit, onOpen: (Long) -> Unit) {
@@ -104,7 +103,6 @@ fun SketchListScreen(vm: SketchViewModel, onBack: () -> Unit, onOpen: (Long) -> 
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { picked -> picked?.let(::usePhoto) }
     val sketches = ui.sketches ?: return
 
-    // imePadding keeps a sketch being renamed above the keyboard.
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 4.dp, end = ScreenPadding, top = 4.dp),
@@ -179,13 +177,8 @@ fun SketchListScreen(vm: SketchViewModel, onBack: () -> Unit, onOpen: (Long) -> 
     }
 }
 
-/** Thumbnails are drawn from photos decoded no larger than this. */
 private const val THUMBNAIL_PX = 320
 
-/**
- * The big buttons that start a sketch: a floor plan, or a drawing over a photo taken with the camera or picked from the
- * gallery. While [importing] a photo, its button shows progress.
- */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun NewSketchActions(
@@ -300,7 +293,6 @@ internal fun SketchCard(
     }
 }
 
-/** The sketch's lines in a small tile, without labels: a plan fitted to it, or a photo filling it with lines over it. */
 @Composable
 private fun SketchThumbnail(doc: SketchDoc, photo: ImageBitmap?, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
@@ -332,7 +324,6 @@ private fun SketchThumbnail(doc: SketchDoc, photo: ImageBitmap?, modifier: Modif
     }
 }
 
-/** A saved sketch's overflow menu. */
 @Composable
 internal fun SketchMenu(onRename: () -> Unit, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -361,7 +352,6 @@ internal fun SketchMenu(onRename: () -> Unit, onDelete: () -> Unit) {
     }
 }
 
-/** What the sketch is called, or else when it was started. */
 fun SketchDoc.title(context: Context): String = name ?: created(context, this)
 
 private fun created(context: Context, doc: SketchDoc, withTime: Boolean = true): String = DateUtils.formatDateTime(

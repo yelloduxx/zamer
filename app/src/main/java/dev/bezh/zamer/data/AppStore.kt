@@ -32,7 +32,6 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 /** How stored JSON is read; unknown keys are tolerated so older app versions can read newer data. */
 internal val StoreJson = Json { ignoreUnknownKeys = true }
 
-/** The rangefinder this phone is paired with. [tokenHex] is the secret from the pairing handshake. */
 data class PairedDevice(val address: String, val name: String, val tokenHex: String)
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -52,15 +51,12 @@ data class HistoryEntry(
     val timestamp: Long,
     val mode: MeasureMode,
     val valuesMm: List<Int>,
-    /** What the user says was measured, e.g. "Kitchen floor". */
     val title: String? = null,
 )
 
 class AppStore(private val context: Context) {
     private val store get() = context.dataStore
     private val json = StoreJson
-
-    // ---- pairing ----
 
     val pairedDevice: Flow<PairedDevice?> = store.data.map { p ->
         val address = p[ADDRESS]
@@ -83,8 +79,6 @@ class AppStore(private val context: Context) {
             it.remove(TOKEN)
         }
     }
-
-    // ---- settings ----
 
     val settings: Flow<Settings> = store.data.map { it.toSettings() }.distinctUntilChanged()
 
@@ -112,8 +106,6 @@ class AppStore(private val context: Context) {
         )
     }
 
-    // ---- history ----
-
     val history: Flow<List<HistoryEntry>> = store.data.map { decodeHistory(it[HISTORY]) }.distinctUntilChanged()
 
     suspend fun addHistory(entry: HistoryEntry) {
@@ -123,7 +115,6 @@ class AppStore(private val context: Context) {
         }
     }
 
-    /** A blank [title] removes the name. */
     suspend fun renameHistory(id: Long, title: String) {
         val name = title.trim().ifEmpty { null }
         store.edit { p ->
@@ -139,8 +130,6 @@ class AppStore(private val context: Context) {
         store.edit { it.remove(HISTORY) }
     }
 
-    // ---- measuring ----
-
     val workspace: Flow<Workspace> = store.data.map { decodeWorkspace(it[WORKSPACE]) }.distinctUntilChanged()
 
     suspend fun updateWorkspace(transform: (Workspace) -> Workspace) {
@@ -150,9 +139,6 @@ class AppStore(private val context: Context) {
     private fun decodeWorkspace(raw: String?): Workspace =
         raw?.let { runCatching { json.decodeFromString<Workspace>(it) }.getOrNull() } ?: Workspace()
 
-    // ---- sketch ----
-
-    /** Every saved sketch, newest first. */
     val sketches: Flow<List<SketchDoc>> = store.data.map { decodeList<SketchDoc>(it[SKETCHES]) }.distinctUntilChanged()
 
     suspend fun addSketch(doc: SketchDoc) {
@@ -177,8 +163,6 @@ class AppStore(private val context: Context) {
     }
 
     private fun decodeHistory(raw: String?): List<HistoryEntry> = decodeList(raw)
-
-    // ---- readings log, newest first ----
 
     val readings: Flow<List<Reading>> = store.data.map { decodeList<Reading>(it[READINGS]) }.distinctUntilChanged()
 
@@ -227,7 +211,6 @@ private val GRID_SKETCH = stringPreferencesKey("sketch_json")
 private inline fun <reified T> decodeList(raw: String?): List<T> =
     raw?.let { runCatching { StoreJson.decodeFromString<List<T>>(it) }.getOrNull() } ?: emptyList()
 
-/** Moves the single sketch kept by earlier versions into the list, before anything reads the store. */
 internal object SketchListMigration : DataMigration<Preferences> {
     override suspend fun shouldMigrate(currentData: Preferences) = SKETCH in currentData || GRID_SKETCH in currentData
 
@@ -243,13 +226,11 @@ internal object SketchListMigration : DataMigration<Preferences> {
     override suspend fun cleanUp() = Unit
 }
 
-/** The sketch an earlier version kept as [mm] or [grid], as a list of one made [now]; empty if there was nothing drawn. */
 internal fun migratedSketches(mm: String?, grid: String?, now: Long): List<SketchDoc> {
     val old = decodeSketch(mm, grid)
     return if (old.shapes.isEmpty()) emptyList() else listOf(SketchDoc(id = now, created = now, sketch = old))
 }
 
-/** The stored sketch from [mm], or else from [grid], an older one counted in dot spacings, scaled to millimetres. */
 internal fun decodeSketch(mm: String?, grid: String?): Sketch {
     fun decode(raw: String?) = raw?.let { runCatching { StoreJson.decodeFromString<Sketch>(it) }.getOrNull() }
     decode(mm)?.let { return it }

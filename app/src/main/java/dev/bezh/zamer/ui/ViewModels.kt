@@ -47,18 +47,12 @@ class ViewModelFactory(private val container: AppContainer) : ViewModelProvider.
     } as T
 }
 
-// ---------------------------------------------------------------- measuring
-
 data class MeasureUiState(
-    /** Null until the stored workspace has been read. */
     val workspace: Workspace? = null,
-    /** The last value put into the current mode's draft during this session. */
     val lastPut: LastPut? = null,
     val link: LinkState = LinkState.Searching,
     val settings: Settings = Settings(),
-    /** Recent distinct values from the readings log, newest first. */
     val recent: List<Int> = emptyList(),
-    /** The history entries that completed drafts were saved as, by id; gone once deleted from history. */
     val saved: Map<Long, HistoryEntry> = emptyMap(),
 )
 
@@ -112,7 +106,6 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
         edit { it.copy(mode = mode) }
     }
 
-    /** Re-measure a specific side; the next reading replaces it. */
     fun selectSlot(index: Int) = edit { it.select(index) }
 
     fun undo() = edit { it.undo() }
@@ -127,17 +120,13 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     }
 }
 
-/** Distinct values from the readings log, newest first, offered for reuse. */
 private fun List<Reading>.recentValues() = map { it.mm }.distinct().take(RECENT_CHIPS)
 
 private const val RECENT_CHIPS = 10
 
-// ------------------------------------------------------------------- sketch
-
 enum class SketchTool { LINE, RECT, TEXT }
 
 data class SketchUiState(
-    /** Null until the stored sketches have been read; newest first. */
     val sketches: List<SketchDoc>? = null,
     val openId: Long? = null,
     /** Increments with every device reading that measured a side, so the UI can buzz. */
@@ -146,11 +135,9 @@ data class SketchUiState(
     val settings: Settings = Settings(),
     val recent: List<Int> = emptyList(),
 ) {
-    /** The sketch being drawn, once it has been read. */
     val open: SketchDoc? get() = sketches?.firstOrNull { it.id == openId }
 }
 
-/** The list of sketches and the one open in the sketch screen, which device readings measure. */
 class SketchViewModel(private val c: AppContainer) : ViewModel() {
     private val assigned = MutableStateFlow(0)
     private val openId = MutableStateFlow<Long?>(null)
@@ -165,22 +152,18 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch { c.readings(ReadingTarget.SKETCH).collect { put(it.mm, fromDevice = true) } }
     }
 
-    /** Opens sketch [id] for drawing and measuring, or with null leaves it. */
     fun open(id: Long?) {
         openId.value = id
     }
 
-    /** Starts an empty floor plan and gives its id. */
     fun newPlan(): Long {
         val now = System.currentTimeMillis()
         viewModelScope.launch { c.store.addSketch(SketchDoc(id = now, created = now)) }
         return now
     }
 
-    /** Where the camera app writes a shot for [newPhoto]. */
     fun newCameraShot(): Uri = c.photos.newCameraShot()
 
-    /** Starts a sketch over the image at [uri], then gives its id to [onCreated], or calls [onFailed] if it can't be read. */
     fun newPhoto(uri: Uri, onCreated: (Long) -> Unit, onFailed: () -> Unit) {
         viewModelScope.launch {
             val photo = try {
@@ -196,17 +179,14 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    /** The photo [file] a sketch is drawn over, at most [maxSide] pixels on its long side. */
     suspend fun photo(file: String, maxSide: Int): ImageBitmap? = c.photos.load(file, maxSide)?.asImageBitmap()
 
-    /** The photo [file] at full size, as a bitmap an export can draw. */
     suspend fun exportPhoto(file: String): Bitmap? = c.photos.load(file, software = true)
 
     fun rename(id: Long, title: String) {
         viewModelScope.launch { c.store.updateSketch(id) { it.renamed(title) } }
     }
 
-    /** Deletes sketch [id] and the photo it was drawn over. */
     fun delete(id: Long) {
         viewModelScope.launch {
             val gone = c.store.deleteSketch(id)
@@ -214,7 +194,6 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    /** Measures the selected side with [mm]; [fromDevice] readings also buzz. */
     fun put(mm: Int, fromDevice: Boolean = false) {
         val id = openId.value ?: return
         viewModelScope.launch {
@@ -241,14 +220,12 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
 
     fun write(id: Long, text: String) = edit { it.write(id, text) }
 
-    /** Deletes the shape [id], such as a picked note. */
     fun erase(id: Long) = edit { it.delete(id) }
 
     fun select(ref: SideRef) = edit { it.select(ref) }
 
     fun move(id: Long, d: Pt) = edit { it.move(id, d) }
 
-    /** Deletes the shape whose side is selected. */
     fun deleteSelected() = edit { s -> s.target?.let { s.delete(it.shapeId) } ?: s }
 
     fun undo() = edit { it.undo() }
@@ -260,8 +237,6 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch { c.store.updateSketch(id) { it.copy(sketch = transform(it.sketch)) } }
     }
 }
-
-// ------------------------------------------------------------------ pairing
 
 sealed interface PairPhase {
     data object Scanning : PairPhase
@@ -279,7 +254,7 @@ class PairingViewModel(private val c: AppContainer) : ViewModel() {
     val ui: StateFlow<PairingUiState> = _ui
     private var scanJob: Job? = null
 
-    /** Safe to call repeatedly; requires Bluetooth permission and Bluetooth on. */
+    /** Needs Bluetooth permission and Bluetooth on. */
     fun startScan() {
         if (scanJob?.isActive == true) return
         _ui.update { PairingUiState() }

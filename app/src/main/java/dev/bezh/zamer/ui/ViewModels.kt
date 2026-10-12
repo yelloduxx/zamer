@@ -1,5 +1,6 @@
 package dev.bezh.zamer.ui
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -193,6 +194,9 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
 
     /** The photo [file] a sketch is drawn over, at most [maxSide] pixels on its long side. */
     suspend fun photo(file: String, maxSide: Int): ImageBitmap? = c.photos.load(file, maxSide)?.asImageBitmap()
+
+    /** The photo [file] at full size, as a bitmap an export can draw. */
+    suspend fun exportPhoto(file: String): Bitmap? = c.photos.load(file, software = true)
 
     fun rename(id: Long, title: String) {
         viewModelScope.launch { c.store.updateSketch(id) { it.renamed(title) } }

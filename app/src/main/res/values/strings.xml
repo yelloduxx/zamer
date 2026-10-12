@@ -56,6 +56,10 @@
     <string name="sketch_photo_gallery">Choose from gallery</string>
     <string name="sketch_photo_failed">Couldn\'t open the photo</string>
     <string name="sketch_no_camera">No camera app found</string>
+    <string name="sketch_export">Export as image</string>
+    <string name="sketch_save_gallery">Save to gallery</string>
+    <string name="sketch_saved">Saved to Pictures/Zamer</string>
+    <string name="sketch_save_failed">Couldn\'t save the image</string>
     <string name="sketch_more">More</string>
     <string name="sketch_delete_confirm">Delete this sketch?</string>
     <string name="action_rename">Rename</string>

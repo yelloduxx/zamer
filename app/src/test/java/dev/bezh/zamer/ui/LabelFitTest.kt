@@ -3,37 +3,33 @@ package dev.bezh.zamer.ui
 import android.content.ComponentName
 import android.content.Context
 import androidx.activity.ComponentActivity
-import androidx.test.core.app.ApplicationProvider
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Undo
-import androidx.compose.material.icons.rounded.FitScreen
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Straighten
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -45,6 +41,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -53,6 +51,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import dev.bezh.zamer.R
@@ -63,6 +62,7 @@ import dev.bezh.zamer.data.ThemeMode
 import dev.bezh.zamer.domain.Draft
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.MeasureMode
+import dev.bezh.zamer.domain.SketchDoc
 import dev.bezh.zamer.domain.UnitSystem
 import dev.bezh.zamer.ui.theme.ZamerTheme
 import org.junit.Assert.assertTrue
@@ -139,22 +139,41 @@ abstract class LabelFitTest(private val locale: String) {
 
     @Test
     fun sketchTopBar() = render("sketch-topbar") {
-        // Mirrors the top bar inlined in SketchScreen, once per pill state that carries a button.
+        // Once per pill state that carries a button.
         listOf(LinkState.NeedsPermission, LinkState.BluetoothOff, LinkState.NeedsRepair, LinkState.NotPaired).forEach { link ->
-            Row(
-                Modifier.fillMaxWidth().padding(start = 4.dp, end = ScreenPadding),
-                verticalAlignment = Alignment.CenterVertically,
+            SketchTopBar(
+                title = stringResource(R.string.sketch_title),
+                onBack = {},
+                onSave = {},
+                onShare = {},
+                canExport = true,
             ) {
-                IconButton({}) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
-                Text(
-                    stringResource(R.string.sketch_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp),
-                )
-                IconButton({}) { Icon(Icons.Rounded.FitScreen, stringResource(R.string.sketch_fit)) }
                 ConnectionPill(link, onRequestPermission = {}, onEnableBluetooth = {}, onPair = {}, compact = true)
             }
         }
+    }
+
+    @Test
+    fun sketchExportMenu() = renderMenu("sketch-export", R.string.sketch_export) {
+        SketchTopBar("Kitchen", onBack = {}, onSave = {}, onShare = {}, canExport = true) {}
+    }
+
+    @Test
+    fun sketchList() = render("sketch-list") {
+        NewSketchActions(onPlan = {}, onCamera = {}, onGallery = {}, importing = false, modifier = inset)
+        Column(inset) {
+            SketchCard(SketchDoc(1, 1_760_000_000_000, "Kitchen floor"), null, formatter, onOpen = {}, onRename = {}, onDelete = {})
+        }
+    }
+
+    @Test
+    fun sketchPhotoMenu() = renderMenu("sketch-photo", R.string.sketch_new_photo) {
+        NewSketchActions(onPlan = {}, onCamera = {}, onGallery = {}, importing = false, modifier = inset)
+    }
+
+    @Test
+    fun sketchItemMenu() = renderMenu("sketch-item", R.string.sketch_more) {
+        Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.End) { SketchMenu(onRename = {}, onDelete = {}) }
     }
 
     @Test
@@ -308,6 +327,16 @@ abstract class LabelFitTest(private val locale: String) {
             labelsThatDoNotFit().map { (text, problem) -> text to "[$locale x$scale] $problem" }
         }
         report(problems)
+    }
+
+    /** Renders [content], opens the menu behind the control labelled or described by [opener], and checks its items too. */
+    private fun renderMenu(name: String, opener: Int, content: @Composable () -> Unit) {
+        render(name, content)
+        val label = compose.activity.getString(opener)
+        compose.onAllNodes(hasText(label).or(hasContentDescription(label)))[0].performClick()
+        compose.waitForIdle()
+        captureScreenRoboImage("build/outputs/roborazzi/$name-menu-$locale.png")
+        report(labelsThatDoNotFit().map { (text, problem) -> text to "[$locale menu] $problem" })
     }
 
     private fun report(problems: List<Pair<String, String>>) {

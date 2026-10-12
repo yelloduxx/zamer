@@ -1,0 +1,107 @@
+package dev.bezh.zamer.ui
+
+import android.graphics.Bitmap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import dev.bezh.zamer.domain.Background
+import dev.bezh.zamer.domain.Formatter
+import dev.bezh.zamer.domain.SketchDoc
+import kotlin.math.roundToInt
+
+/** The longest side of an exported plan, in pixels. */
+private const val MAX_EXPORT_PX = 4096
+
+/**
+ * Lines and labels in an export are sized as on a phone screen this many dp across the image's long side, so they keep
+ * their proportion to the drawing at any resolution.
+ */
+private const val EXPORT_LONG_SIDE_DP = 640f
+
+/** Room around a plan's shapes, for labels set beside short sides and for the caption. */
+private val PlanMargin = 56.dp
+
+/** A plan exports on white paper in the app's own light colours, whatever the theme or wallpaper. */
+private val Paper = Color.White
+private val PaperColors = SketchColors(
+    line = Color(0xFF231918),
+    raised = Color(0xFFB3261E),
+    label = Color(0xFFF7E4E1),
+    onLabel = Color(0xFF231918),
+    selected = Color(0xFFB3261E),
+    onSelected = Color.White,
+    area = Color(0xFFFFDAD5),
+    onArea = Color(0xFF410002),
+)
+
+/**
+ * [doc] drawn into a new bitmap with its labels and, if any, [caption] in the bottom corner. A plan is cropped to its
+ * shapes with a margin, its long side [MAX_EXPORT_PX]; a photo sketch is the whole [photo] at its own resolution with
+ * the drawing over it. Null when there is nothing to draw: a plan without shapes, or a photo that couldn't be loaded.
+ */
+internal fun renderSketch(
+    doc: SketchDoc,
+    photo: Bitmap?,
+    caption: String?,
+    formatter: Formatter,
+    measurer: TextMeasurer,
+    labelStyle: TextStyle,
+    photoColors: SketchColors,
+): Bitmap? {
+    val width: Int
+    val height: Int
+    val density: Density
+    val view: SketchView
+    when (val background = doc.background) {
+        Background.Plan -> {
+            val points = doc.sketch.shapes.flatMap { it.points }
+            if (points.isEmpty()) return null
+            val spanX = (points.maxOf { it.x } - points.minOf { it.x }).coerceAtLeast(1)
+            val spanY = (points.maxOf { it.y } - points.minOf { it.y }).coerceAtLeast(1)
+            density = Density(MAX_EXPORT_PX / EXPORT_LONG_SIDE_DP)
+            val margin = with(density) { PlanMargin.toPx() }
+            val k = (MAX_EXPORT_PX - 2 * margin) / maxOf(spanX, spanY)
+            width = (spanX * k + 2 * margin).roundToInt()
+            height = (spanY * k + 2 * margin).roundToInt()
+            view = fitView(points, width.toFloat(), height.toFloat(), margin) ?: return null
+        }
+        is Background.Photo -> {
+            if (photo == null) return null
+            width = photo.width
+            height = photo.height
+            density = Density(maxOf(width, height) / EXPORT_LONG_SIDE_DP)
+            view = SketchView(0f, 0f, width.toFloat() / background.width)
+        }
+    }
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val size = Size(width.toFloat(), height.toFloat())
+    CanvasDrawScope().draw(density, LayoutDirection.Ltr, Canvas(bitmap.asImageBitmap()), size) {
+        val colors = when (doc.background) {
+            Background.Plan -> {
+                drawRect(Paper)
+                PaperColors
+            }
+            is Background.Photo -> {
+                photo?.let { drawImage(it.asImageBitmap()) }
+                photoColors
+            }
+        }
+        drawShapes(doc.sketch.shapes, view, colors, SketchLabels(measurer, labelStyle, formatter))
+        caption?.let {
+            val text = measurer.measure(it, labelStyle.copy(color = colors.onLabel), density = this)
+            val inset = 16.dp.toPx()
+            val h = text.size.height + 4.dp.toPx()
+            val w = text.size.width + 12.dp.toPx()
+            pill(text, Offset(inset + w / 2, size.height - inset - h / 2), 0f, colors.label)
+        }
+    }
+    return bitmap
+}

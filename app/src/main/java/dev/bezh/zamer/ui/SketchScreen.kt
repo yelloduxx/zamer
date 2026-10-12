@@ -1,5 +1,6 @@
 package dev.bezh.zamer.ui
 
+import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -33,19 +34,27 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FitScreen
 import androidx.compose.material.icons.rounded.HorizontalRule
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,6 +68,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -96,6 +106,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
+import dev.bezh.zamer.data.imageName
+import dev.bezh.zamer.data.saveToGallery
+import dev.bezh.zamer.data.shareImage
 import dev.bezh.zamer.domain.Background
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.GRID_MM
@@ -106,6 +119,9 @@ import dev.bezh.zamer.domain.SideRef
 import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.SketchShape
 import dev.bezh.zamer.domain.Snap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -162,6 +178,35 @@ fun SketchScreen(
     LaunchedEffect(sketch.target) { if (sketch.target != editing) editing = null }
     BackHandler(enabled = editing != null) { editing = null }
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    val saved = stringResource(R.string.sketch_saved)
+    val saveFailed = stringResource(R.string.sketch_save_failed)
+    // Its own measurer, so rendering off the main thread never shares the canvas's text cache.
+    val exportMeasurer = rememberTextMeasurer(cacheSize = 0)
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val overPhoto = photoColors(MaterialTheme.colorScheme)
+    val caption = listOfNotNull(
+        doc.name,
+        sketch.totalArea?.let { stringResource(R.string.sketch_total_area, formatter.area(it).toString()) },
+    ).joinToString(" · ").ifEmpty { null }
+    var exporting by remember { mutableStateOf(false) }
+    fun export(use: suspend (Bitmap, String) -> Unit) {
+        exporting = true
+        scope.launch {
+            try {
+                val full = (doc.background as? Background.Photo)?.let { vm.exportPhoto(it.file) }
+                val image = withContext(Dispatchers.Default) {
+                    renderSketch(doc, full, caption, formatter, exportMeasurer, labelStyle, overPhoto)
+                }
+                if (image != null) use(image, imageName(doc.title(context)))
+            } finally {
+                exporting = false
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -170,23 +215,18 @@ fun SketchScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val inset = Modifier.padding(horizontal = ScreenPadding)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = ScreenPadding, top = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        val drawn = sketch.shapes.isNotEmpty() || doc.background is Background.Photo
+        SketchTopBar(
+            title = doc.title(context),
+            onBack = onBack,
+            onSave = {
+                export { image, name ->
+                    snackbar.showSnackbar(if (saveToGallery(context, image, name)) saved else saveFailed)
+                }
+            },
+            onShare = { export { image, name -> if (!shareImage(context, image, name)) snackbar.showSnackbar(saveFailed) } },
+            canExport = drawn && !exporting,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
-            }
-            Text(
-                doc.title(LocalContext.current),
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(start = 4.dp),
-            )
-            IconButton(onClick = { fits++ }, enabled = sketch.shapes.isNotEmpty() || doc.background is Background.Photo) {
-                Icon(Icons.Rounded.FitScreen, contentDescription = stringResource(R.string.sketch_fit))
-            }
             ConnectionPill(
                 link = ui.link,
                 onRequestPermission = onRequestPermission,
@@ -223,6 +263,14 @@ fun SketchScreen(
                     Modifier.align(Alignment.TopStart).padding(12.dp),
                 )
             }
+            FilledTonalIconButton(
+                onClick = { fits++ },
+                enabled = drawn,
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            ) {
+                Icon(Icons.Rounded.FitScreen, contentDescription = stringResource(R.string.sketch_fit))
+            }
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
         val typing = editing
         if (typing != null) {
@@ -308,6 +356,64 @@ fun SketchScreen(
 }
 
 private val ActionPadding = PaddingValues(horizontal = 8.dp)
+
+/** Back, the sketch's [title], exporting it as an image, and the connection [pill]. */
+@Composable
+internal fun SketchTopBar(
+    title: String,
+    onBack: () -> Unit,
+    onSave: () -> Unit,
+    onShare: () -> Unit,
+    canExport: Boolean,
+    pill: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = ScreenPadding, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
+        }
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 4.dp),
+        )
+        ExportMenu(onSave, onShare, enabled = canExport)
+        pill()
+    }
+}
+
+/** A button that offers to save the sketch as an image in the gallery or to share it. */
+@Composable
+private fun ExportMenu(onSave: () -> Unit, onShare: () -> Unit, enabled: Boolean) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, enabled = enabled) {
+            Icon(Icons.Rounded.IosShare, contentDescription = stringResource(R.string.sketch_export))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.sketch_save_gallery)) },
+                leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onSave()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.action_share)) },
+                leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onShare()
+                },
+            )
+        }
+    }
+}
 
 /** A side's length typed in [unit], opened with the keyboard up; [onDone] gets the text when the user confirms it. */
 @Composable

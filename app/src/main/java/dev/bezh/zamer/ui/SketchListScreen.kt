@@ -281,7 +281,7 @@ internal fun SketchCard(
                         Text(formatter.area(it).toString(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                     }
                     if (doc.name != null) {
-                        Text(created(context, doc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(created(context, doc, withTime = false), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 SketchMenu(onRename = { renaming = true }, onDelete = onDelete)
@@ -364,8 +364,8 @@ internal fun SketchMenu(onRename: () -> Unit, onDelete: () -> Unit) {
 /** What the sketch is called, or else when it was started. */
 fun SketchDoc.title(context: Context): String = name ?: created(context, this)
 
-private fun created(context: Context, doc: SketchDoc): String = DateUtils.formatDateTime(
+private fun created(context: Context, doc: SketchDoc, withTime: Boolean = true): String = DateUtils.formatDateTime(
     context,
     doc.created,
-    DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
+    DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or if (withTime) DateUtils.FORMAT_SHOW_TIME else 0,
 )

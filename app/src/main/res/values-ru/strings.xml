@@ -56,6 +56,10 @@
     <string name="sketch_photo_gallery">Выбрать из галереи</string>
     <string name="sketch_photo_failed">Не удалось открыть фото</string>
     <string name="sketch_no_camera">Нет приложения камеры</string>
+    <string name="sketch_export">Экспорт в картинку</string>
+    <string name="sketch_save_gallery">Сохранить в галерею</string>
+    <string name="sketch_saved">Сохранено в Pictures/Zamer</string>
+    <string name="sketch_save_failed">Не удалось сохранить картинку</string>
     <string name="sketch_more">Ещё</string>
     <string name="sketch_delete_confirm">Удалить этот эскиз?</string>
     <string name="action_rename">Переименовать</string>

@@ -94,9 +94,9 @@ fun MeasureScreen(
         Formatter(ui.settings.units, ui.settings.decimals)
     }
     val haptics = LocalHapticFeedback.current
-    val countOnEntry = remember { ui.readingCount }
-    LaunchedEffect(ui.readingCount) {
-        if (ui.readingCount > countOnEntry && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+    val hapticsOn by rememberUpdatedState(ui.settings.haptics)
+    LaunchedEffect(vm) {
+        vm.deviceReadings.collect { if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.Confirm) }
     }
 
     Column(
@@ -141,8 +141,8 @@ fun MeasureScreen(
             ModePage(
                 mode = pageMode,
                 ws = ws,
-                lastMm = ui.lastMm.takeIf { current },
-                readingCount = ui.readingCount,
+                lastMm = ui.lastPut?.mm.takeIf { current },
+                putId = ui.lastPut?.id,
                 saved = ui.saved,
                 formatter = formatter,
                 onSelectSlot = { if (current) vm.selectSlot(it) },
@@ -163,7 +163,7 @@ private fun ModePage(
     mode: MeasureMode,
     ws: Workspace,
     lastMm: Int?,
-    readingCount: Int,
+    putId: Long?,
     saved: Map<Long, HistoryEntry>,
     formatter: Formatter,
     onSelectSlot: (Int) -> Unit,
@@ -179,7 +179,7 @@ private fun ModePage(
             result = ws.result(mode),
             saved = (draft as? Draft.Complete)?.savedId?.let(saved::get),
             lastMm = lastMm,
-            readingCount = readingCount,
+            putId = putId,
             formatter = formatter,
             onRename = onRename,
             onOpenSketch = onOpenSketch.takeIf { mode == MeasureMode.AREA },
@@ -244,7 +244,7 @@ private fun Readout(
     result: MeasureResult?,
     saved: HistoryEntry?,
     lastMm: Int?,
-    readingCount: Int,
+    putId: Long?,
     formatter: Formatter,
     onRename: (Long, String) -> Unit,
     onOpenSketch: (() -> Unit)?,
@@ -326,7 +326,7 @@ private fun Readout(
                         )
                         if (quantity != null) {
                             AnimatedContent(
-                                targetState = quantity to readingCount,
+                                targetState = quantity to putId,
                                 transitionSpec = {
                                     (slideInVertically(tween(280)) { it / 3 } + fadeIn(tween(280))) togetherWith
                                         (slideOutVertically(tween(200)) { -it / 3 } + fadeOut(tween(160)))

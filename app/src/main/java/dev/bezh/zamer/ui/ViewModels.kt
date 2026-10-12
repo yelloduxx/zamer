@@ -28,6 +28,7 @@ import dev.bezh.zamer.domain.SketchDoc
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -52,9 +53,7 @@ data class MeasureUiState(
     /** Null until the stored workspace has been read. */
     val workspace: Workspace? = null,
     /** The last value put into the current mode's draft during this session. */
-    val lastMm: Int? = null,
-    /** Increments with every device reading so the UI can react (haptics, animation). */
-    val readingCount: Int = 0,
+    val lastPut: LastPut? = null,
     val link: LinkState = LinkState.Searching,
     val settings: Settings = Settings(),
     /** Recent distinct values from the readings log, newest first. */
@@ -63,10 +62,11 @@ data class MeasureUiState(
     val saved: Map<Long, HistoryEntry> = emptyMap(),
 )
 
-private data class Session(val lastMm: Int? = null, val readingCount: Int = 0)
+/** [id] is new for every put, so the readout can animate a repeated value. */
+data class LastPut(val mm: Int, val id: Long)
 
 class MeasureViewModel(private val c: AppContainer) : ViewModel() {
-    private val session = MutableStateFlow(Session())
+    private val lastPut = MutableStateFlow<LastPut?>(null)
 
     private val stored = combine(c.store.workspace, c.store.history, c.store.readings) { ws, history, log ->
         val ids = ws.drafts.values.mapNotNullTo(HashSet()) { (it as? Draft.Complete)?.savedId }
@@ -78,21 +78,23 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     val ui: StateFlow<MeasureUiState> =
-        combine(stored, session, c.repository.state, c.store.settings) { st, s, link, settings ->
-            st.copy(lastMm = s.lastMm, readingCount = s.readingCount, link = link, settings = settings)
+        combine(stored, lastPut, c.repository.state, c.store.settings) { st, last, link, settings ->
+            st.copy(lastPut = last, link = link, settings = settings)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasureUiState())
 
+    /** Readings from the rangefinder from the moment a collector starts; earlier ones are not replayed. */
+    val deviceReadings: Flow<Reading> = c.readings(ReadingTarget.MEASURE)
+
     init {
-        viewModelScope.launch { c.readings(ReadingTarget.MEASURE).collect { put(it.mm, fromDevice = true) } }
+        viewModelScope.launch { deviceReadings.collect { put(it.mm) } }
     }
 
-    /** Treats [mm] as the next reading; [fromDevice] readings also buzz. */
-    fun put(mm: Int, fromDevice: Boolean = false) {
-        session.update { it.copy(lastMm = mm, readingCount = it.readingCount + if (fromDevice) 1 else 0) }
+    fun put(mm: Int) {
+        val id = System.nanoTime()
+        lastPut.value = LastPut(mm, id)
         viewModelScope.launch {
             var completed: HistoryEntry? = null
             c.store.updateWorkspace { ws ->
-                val id = System.nanoTime()
                 val put = ws.put(mm, id)
                 completed = put.completed?.let { HistoryEntry(id, System.currentTimeMillis(), it.mode, it.valuesMm) }
                 put.workspace
@@ -106,7 +108,7 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     fun setMode(mode: MeasureMode) {
-        session.update { it.copy(lastMm = null) }
+        lastPut.value = null
         edit { it.copy(mode = mode) }
     }
 
@@ -116,7 +118,7 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
     fun undo() = edit { it.undo() }
 
     fun reset() {
-        session.update { it.copy(lastMm = null) }
+        lastPut.value = null
         edit { it.reset() }
     }
 

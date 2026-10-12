@@ -104,6 +104,7 @@ import dev.bezh.zamer.domain.Segment
 import dev.bezh.zamer.domain.SideRef
 import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.SketchShape
+import dev.bezh.zamer.domain.Snap
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -384,7 +385,7 @@ private sealed interface Touch {
     /** Down and still: not yet a stroke or a hold, and a tap if it lifts now. */
     data object Pending : Touch
 
-    data class Drawing(val start: Pt, val end: Pt) : Touch
+    data class Drawing(val start: Pt, val end: Snap) : Touch
 
     /** Holding shape [id] after a long press; once [moved], [shift] is where it would drop. */
     data class Carrying(val id: Long, val shift: Pt = Pt(0, 0), val moved: Boolean = false) : Touch
@@ -415,6 +416,7 @@ private fun SketchCanvas(
     val density = LocalDensity.current
     val spacing = with(density) { GridSpacing.toPx() }
     val snapReach = with(density) { 20.dp.toPx() }
+    val alignReach = with(density) { 15.dp.toPx() }
     val tapReach = with(density) { 24.dp.toPx() }
     val minDotGap = with(density) { MinDotGap.toPx() }
     var scale by rememberSaveable { mutableFloatStateOf(1f) }
@@ -460,6 +462,7 @@ private fun SketchCanvas(
     }
     val current by rememberUpdatedState(sketch)
     val draw by rememberUpdatedState(onDraw)
+    val currentTool by rememberUpdatedState(tool)
     val select by rememberUpdatedState(onSelect)
     val edit by rememberUpdatedState(onEdit)
     val move by rememberUpdatedState(onMove)
@@ -488,7 +491,10 @@ private fun SketchCanvas(
                     fun mmPerPx() = GRID_MM / (spacing * scale)
                     fun world(p: Offset) = Offset(p.x - originX, p.y - originY) * mmPerPx()
                     fun step() = GRID_MM * dotStep(spacing * scale, minDotGap)
-                    fun snap(p: Offset): Pt = world(p).let { current.snap(it.x, it.y, snapReach * mmPerPx(), step()) }
+                    fun snap(p: Offset, from: Pt? = null) =
+                        world(p).let { current.snap(it.x, it.y, snapReach * mmPerPx(), alignReach * mmPerPx(), step(), from) }
+                    // Lining a rectangle's far corner up with its first would flatten it.
+                    fun drawFrom(start: Pt) = start.takeIf { currentTool == SketchTool.LINE }
                     fun sideAtDown() = world(down.position).let { current.sideAt(it.x, it.y, tapReach * mmPerPx()) }
 
                     var state: Touch = Touch.Pending
@@ -535,8 +541,13 @@ private fun SketchCanvas(
                         val moved = (change.position - down.position).getDistance() > viewConfiguration.touchSlop
                         state = when (val now = state) {
                             Touch.Pending ->
-                                if (moved && !second) Touch.Drawing(snap(down.position), snap(change.position)) else now
-                            is Touch.Drawing -> now.copy(end = snap(change.position))
+                                if (moved && !second) {
+                                    val start = snap(down.position).at
+                                    Touch.Drawing(start, snap(change.position, drawFrom(start)))
+                                } else {
+                                    now
+                                }
+                            is Touch.Drawing -> now.copy(end = snap(change.position, drawFrom(now.start)))
                             is Touch.Carrying ->
                                 if (!moved && !now.moved) {
                                     now
@@ -554,7 +565,7 @@ private fun SketchCanvas(
                     gesture = null
                     when (val end = state) {
                         Touch.Viewing -> Unit
-                        is Touch.Drawing -> draw(end.start, end.end)
+                        is Touch.Drawing -> draw(end.start, end.end.at)
                         is Touch.Carrying -> if (end.moved) move(end.id, end.shift) else select(sideAtDown() ?: SideRef(end.id, 0))
                         Touch.Pending -> {
                             val side = sideAtDown()
@@ -600,7 +611,14 @@ private fun SketchCanvas(
                     pathEffect = if (measured) null else dash,
                 )
             }
-        (gesture as? Touch.Drawing)?.let { (a, b) ->
+        (gesture as? Touch.Drawing)?.let { (a, end) ->
+            val guide = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
+            end.guides.forEach { g ->
+                val p = at(g.through)
+                val (from, to) = if (g.vertical) Offset(p.x, 0f) to Offset(p.x, size.height) else Offset(0f, p.y) to Offset(size.width, p.y)
+                drawLine(scheme.primary.copy(alpha = 0.4f), from, to, 1.dp.toPx(), pathEffect = guide)
+            }
+            val b = end.at
             val shape: SketchShape = if (tool == SketchTool.LINE) Segment(0, a, b) else Rect(0, a, b)
             shape.edges.forEach {
                 drawLine(scheme.primary.copy(alpha = 0.6f), at(it.a), at(it.b), 3.dp.toPx(), StrokeCap.Round)

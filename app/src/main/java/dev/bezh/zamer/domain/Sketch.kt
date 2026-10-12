@@ -2,6 +2,7 @@ package dev.bezh.zamer.domain
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sign
@@ -99,6 +100,12 @@ data class Rect(
         else copy(b = Pt(b.x, a.y + mm * (b.y - a.y).sign), heightMm = mm)
 }
 
+/** A horizontal or, if [vertical], vertical line through [through] that a drawing finger lined up with. */
+data class Guide(val through: Pt, val vertical: Boolean)
+
+/** Where a drawing finger lands, and the [guides] it lined up along to get there. */
+data class Snap(val at: Pt, val guides: List<Guide> = emptyList())
+
 /** Side [side] of the shape [shapeId]. */
 @Serializable
 data class SideRef(val shapeId: Long, val side: Int)
@@ -165,16 +172,47 @@ data class Sketch(
         get() = shapes.mapNotNull { (it as? Rect)?.area }.takeIf { it.isNotEmpty() }?.sum()
 
     /**
-     * The point a finger at ([x], [y]) mm draws from or to: a shape's end or corner within [reach] mm, or else the
-     * nearest dot of a grid [step] mm apart.
+     * Where a finger at ([x], [y]) draws from or to, taking the first that applies: a shape's end or corner within
+     * [reach]; the x or y of [from], the stroke's start, within [align], so the line comes out exactly straight; the x
+     * or y of any shape's point within [align]; a point on a side within [reach], so a wall can butt into another; the
+     * nearest dot of a grid [step] apart, or the finger itself with no grid. Lining up one axis leaves the other to the
+     * rules after it.
      */
-    fun snap(x: Float, y: Float, reach: Float, step: Int = GRID_MM): Pt {
-        val corner = shapes.asSequence()
-            .flatMap { it.points }
-            .map { it to hypot(it.x - x, it.y - y) }
+    fun snap(x: Float, y: Float, reach: Float, align: Float, step: Int?, from: Pt? = null): Snap {
+        val points = shapes.flatMap { it.points }
+        points.map { it to hypot(it.x - x, it.y - y) }.filter { it.second <= reach }.minByOrNull { it.second }
+            ?.let { return Snap(it.first) }
+
+        fun lineUp(value: Float, vertical: Boolean): Guide? {
+            fun gap(p: Pt) = abs((if (vertical) p.x else p.y) - value)
+            val start = from?.takeIf { gap(it) <= align }
+            return (start ?: points.filter { gap(it) <= align }.minByOrNull(::gap))?.let { Guide(it, vertical) }
+        }
+        val gx = lineUp(x, vertical = true)
+        val gy = lineUp(y, vertical = false)
+        val guides = listOfNotNull(gx, gy)
+        val lx = gx?.through?.x
+        val ly = gy?.through?.y
+        if (lx != null && ly != null) return Snap(Pt(lx, ly), guides)
+
+        val junction = shapes.asSequence()
+            .flatMap { it.edges }
+            .mapNotNull { e ->
+                when {
+                    lx != null -> e.crossing(lx.toFloat(), vertical = true)
+                    ly != null -> e.crossing(ly.toFloat(), vertical = false)
+                    else -> e.nearest(x, y)
+                }
+            }
+            .map { it to hypot(it.first - x, it.second - y) }
             .filter { it.second <= reach }
             .minByOrNull { it.second }
-        return corner?.first ?: Pt((x / step).roundToInt() * step, (y / step).roundToInt() * step)
+            ?.first
+        if (junction != null) {
+            return Snap(Pt(lx ?: junction.first.roundToInt(), ly ?: junction.second.roundToInt()), guides)
+        }
+        fun dot(v: Float) = if (step == null) v.roundToInt() else (v / step).roundToInt() * step
+        return Snap(Pt(lx ?: dot(x), ly ?: dot(y)), guides)
     }
 
     /**
@@ -248,13 +286,24 @@ data class Sketch(
         return shapes.map { done[it.id] ?: it }
     }
 
-    private fun distance(x: Float, y: Float, e: Edge): Float {
-        val dx = (e.b.x - e.a.x).toFloat()
-        val dy = (e.b.y - e.a.y).toFloat()
-        val len2 = dx * dx + dy * dy
-        val t = if (len2 == 0f) 0f else (((x - e.a.x) * dx + (y - e.a.y) * dy) / len2).coerceIn(0f, 1f)
-        return hypot(x - (e.a.x + t * dx), y - (e.a.y + t * dy))
-    }
+    private fun distance(x: Float, y: Float, e: Edge): Float = e.nearest(x, y).let { (px, py) -> hypot(x - px, y - py) }
+}
+
+/** The point of this edge nearest to ([x], [y]). */
+private fun Edge.nearest(x: Float, y: Float): Pair<Float, Float> {
+    val dx = (b.x - a.x).toFloat()
+    val dy = (b.y - a.y).toFloat()
+    val len2 = dx * dx + dy * dy
+    val t = if (len2 == 0f) 0f else (((x - a.x) * dx + (y - a.y) * dy) / len2).coerceIn(0f, 1f)
+    return a.x + t * dx to a.y + t * dy
+}
+
+/** Where this edge crosses the line x = [at], or y = [at] unless [vertical]; null if it misses or runs along it. */
+private fun Edge.crossing(at: Float, vertical: Boolean): Pair<Float, Float>? {
+    val (u0, u1) = if (vertical) a.x to b.x else a.y to b.y
+    if (u0 == u1 || at < minOf(u0, u1) || at > maxOf(u0, u1)) return null
+    val t = (at - u0) / (u1 - u0)
+    return if (vertical) at to a.y + t * (b.y - a.y) else a.x + t * (b.x - a.x) to at
 }
 
 private fun List<SketchShape>.has(ref: SideRef) = any { it.id == ref.shapeId && ref.side in it.sides.indices }

@@ -2,7 +2,10 @@ package dev.bezh.zamer
 
 import dev.bezh.zamer.data.StoreJson
 import dev.bezh.zamer.data.decodeSketch
+import dev.bezh.zamer.domain.GRID_MM
+import dev.bezh.zamer.domain.Guide
 import dev.bezh.zamer.domain.Pt
+import dev.bezh.zamer.domain.Snap
 import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.Segment
 import dev.bezh.zamer.domain.SideRef
@@ -242,9 +245,55 @@ class SketchTest {
     @Test
     fun drawingSnapsToANearbyCornerBeforeTheNearestDot() {
         val s = Sketch().add(room)
-        assertEquals(Pt(2500, 1500), s.snap(2900f, 1700f, reach = 500f))
-        assertEquals(Pt(4000, 500), s.snap(3800f, 600f, reach = 500f))
-        assertEquals("dots shown farther apart are snapped to instead", Pt(4000, 1000), s.snap(3800f, 600f, 500f, step = 1000))
+        assertEquals(Snap(Pt(2500, 1500)), s.snap(2900f, 1700f, reach = 500f, align = 0f, step = GRID_MM))
+        assertEquals(Snap(Pt(4000, 500)), s.snap(3800f, 600f, reach = 500f, align = 0f, step = GRID_MM))
+        assertEquals("dots shown farther apart are snapped to instead", Pt(4000, 1000), s.snap(3800f, 600f, 500f, 0f, step = 1000).at)
+        assertEquals("with no grid the finger stays where it is", Pt(3800, 601), s.snap(3800f, 600.6f, 500f, 0f, step = null).at)
+    }
+
+    @Test
+    fun aNearlyVerticalStrokeFromAnOffGridCornerComesOutExactlyVertical() {
+        val s = Sketch().add(Segment(1, Pt(0, 0), Pt(1000, 0))).put(1234)
+        val corner = Pt(1234, 0)
+        val end = s.snap(1290f, 1980f, reach = 100f, align = 75f, step = GRID_MM, from = corner)
+        assertEquals(Snap(Pt(1234, 2000), listOf(Guide(corner, vertical = true))), end)
+
+        val sideways = s.snap(3020f, 40f, reach = 100f, align = 75f, step = GRID_MM, from = corner)
+        assertEquals("a nearly level stroke stays level", Pt(3000, 0), sideways.at)
+        assertEquals("without the start to line up with, the corner's own x is used", Pt(1234, 2000), s.snap(1290f, 1980f, 100f, 75f, GRID_MM).at)
+    }
+
+    @Test
+    fun aStrokeEndingNearAWallButtsIntoIt() {
+        val s = Sketch().add(Segment(1, Pt(0, 0), Pt(1000, 1000)))
+        val t = s.snap(620f, 380f, reach = 200f, align = 0f, step = GRID_MM)
+        assertEquals("the nearest point of the diagonal", Snap(Pt(500, 500)), t)
+
+        val wall = Sketch().add(Segment(1, Pt(0, 3000), Pt(4000, 3000)))
+        val start = Pt(1234, 0)
+        val down = wall.snap(1260f, 2915f, reach = 100f, align = 75f, step = GRID_MM, from = start)
+        assertEquals("a vertical line stops exactly on the wall", Snap(Pt(1234, 3000), listOf(Guide(start, vertical = true))), down)
+    }
+
+    @Test
+    fun snappingTriesCornersThenTheStartThenOtherPointsThenSidesThenDots() {
+        val s = Sketch()
+            .add(Segment(1, Pt(0, 0), Pt(1000, 0)))
+            .add(Segment(2, Pt(1100, 2000), Pt(3000, 2000)))
+        val from = Pt(1000, 0)
+        assertEquals("a corner within reach beats lining up", Pt(1100, 2000), s.snap(1040f, 1990f, 100f, 75f, GRID_MM, from).at)
+        assertEquals(
+            "the start beats another point at the same distance",
+            Snap(Pt(1000, 1500), listOf(Guide(from, vertical = true))),
+            s.snap(1050f, 1450f, 100f, 75f, GRID_MM, from),
+        )
+        assertEquals(
+            "another point's x beats the dot",
+            Snap(Pt(1100, 1500), listOf(Guide(Pt(1100, 2000), vertical = true))),
+            s.snap(1080f, 1460f, 100f, 75f, GRID_MM),
+        )
+        assertEquals("a side beats the dot", Pt(2040, 2000), s.snap(2040f, 1920f, 100f, 75f, GRID_MM).at)
+        assertEquals("nothing near leaves the dot", Snap(Pt(2000, 1000)), s.snap(2040f, 1100f, 100f, 75f, GRID_MM))
     }
 
     @Test

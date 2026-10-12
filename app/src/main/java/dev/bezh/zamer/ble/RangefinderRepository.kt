@@ -3,6 +3,7 @@ package dev.bezh.zamer.ble
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.annotation.RequiresPermission
 import dev.bezh.zamer.data.AppStore
 import dev.bezh.zamer.data.PairedDevice
 import dev.bezh.zamer.domain.Reading
@@ -71,6 +72,9 @@ class RangefinderRepository(
     }
 
     suspend fun pair(found: FoundDevice): PairOutcome = pairingLock.withLock {
+        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return PairOutcome.Failure("Bluetooth permission is not granted")
+        }
         stopLoop()
         try {
             val link = GattLink(context)
@@ -116,7 +120,8 @@ class RangefinderRepository(
         val token = paired.tokenHex.hexToBytes()
         var failures = 0
         while (true) {
-            if (!hasPermissions()) {
+            // Spelled out rather than hasPermissions(): lint only credits a checkSelfPermission call in the same method.
+            if (REQUIRED_PERMISSIONS.any { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }) {
                 _state.value = LinkState.NeedsPermission
                 delay(1_000)
                 continue
@@ -185,6 +190,7 @@ class RangefinderRepository(
     suspend fun setDeviceUnit(unit: DeviceUnit): Boolean = sendSetting(DeviceAttr.UNIT_ID, unit.ordinal)
 
     private suspend fun sendSetting(id: Int, value: Int): Boolean {
+        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return false
         val s = session ?: return false
         return runCatching { s.send(DeviceAttr.set(s.nextMsgId(), id, value)) }.isSuccess
     }
@@ -194,6 +200,7 @@ class RangefinderRepository(
         private var counter = 0
         private var msgId = 0
 
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         suspend fun send(plain: ByteArray) = lock.withLock { link.writeData(keys.encrypt(plain, ++counter)) }
 
         fun nextMsgId(): Int = synchronized(this) {

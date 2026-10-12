@@ -1,12 +1,13 @@
 package dev.bezh.zamer.ble
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,6 @@ class RangefinderScanner(private val context: Context) {
 
     val isBluetoothOn: Boolean get() = adapter?.isEnabled == true
 
-    @SuppressLint("MissingPermission")
     fun scan(): Flow<FoundDevice> = callbackFlow {
         val scanner = adapter?.bluetoothLeScanner
         if (scanner == null) {
@@ -49,16 +49,18 @@ class RangefinderScanner(private val context: Context) {
         awaitClose { scanner.stopScan(callback) }
     }
 
-    @SuppressLint("MissingPermission")
     private fun ScanResult.toRangefinder(): FoundDevice? {
         val record = scanRecord ?: return null
-        val name = record.deviceName ?: device.name ?: ""
+        val name = record.deviceName ?: cachedName(device) ?: ""
         val xiaomi = record.getServiceData(ParcelUuid(Uuids.XIAOMI_SERVICE))
         val isRangefinder = name.startsWith(NAME_PREFIX, ignoreCase = true) ||
             (xiaomi != null && xiaomi.size >= 4 && productId(xiaomi) in KNOWN_PRODUCT_IDS)
         if (!isRangefinder) return null
         return FoundDevice(device.address, name.ifEmpty { "HOTO rangefinder" }, rssi, device)
     }
+
+    private fun cachedName(device: BluetoothDevice): String? =
+        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) device.name else null
 
     private fun productId(serviceData: ByteArray) =
         (serviceData[2].toInt() and 0xFF) or ((serviceData[3].toInt() and 0xFF) shl 8)

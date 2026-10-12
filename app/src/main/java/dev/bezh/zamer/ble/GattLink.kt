@@ -1,6 +1,6 @@
 package dev.bezh.zamer.ble
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.os.Build
+import androidx.annotation.RequiresPermission
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
@@ -31,7 +32,6 @@ internal object Uuids {
     val CCCD = short(0x2902)
 }
 
-@SuppressLint("MissingPermission")
 class GattLink(private val context: Context) : AuthLink {
 
     override val upnp = Channel<ByteArray>(Channel.UNLIMITED)
@@ -91,6 +91,7 @@ class GattLink(private val context: Context) : AuthLink {
         }
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     suspend fun open(device: BluetoothDevice) {
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
             ?: throw IOException("Could not start a connection")
@@ -117,10 +118,13 @@ class GattLink(private val context: Context) : AuthLink {
         }
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override suspend fun writeUpnp(data: ByteArray) = write(upnpChar, data)
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override suspend fun writeAvdtp(data: ByteArray) = write(avdtpChar, data)
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     suspend fun writeData(frame: ByteArray) = write(dataWriteChar, frame)
 
     fun close() {
@@ -139,6 +143,7 @@ class GattLink(private val context: Context) : AuthLink {
     }
 
     @Suppress("DEPRECATION")
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private suspend fun enableNotifications(c: BluetoothGattCharacteristic) {
         val g = gatt ?: throw IOException("Not connected")
         g.setCharacteristicNotification(c, true)
@@ -155,6 +160,7 @@ class GattLink(private val context: Context) : AuthLink {
     }
 
     @Suppress("DEPRECATION")
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private suspend fun write(c: BluetoothGattCharacteristic?, data: ByteArray) {
         val g = gatt ?: throw IOException("Not connected")
         c ?: throw IOException("Not connected")

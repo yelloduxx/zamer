@@ -42,10 +42,13 @@ data class Workspace(
     fun result(of: MeasureMode = mode): MeasureResult? =
         draft(of).takeIf { it.isComplete }?.let { MeasureResult.of(of, it.values.filterNotNull()) }
 
-    fun put(mm: Int, entryId: Long): Pair<Workspace, MeasureResult?> {
+    /** [completed] is set only when this put finished a valid set, which is then saved as [entryId]. */
+    data class Put(val workspace: Workspace, val completed: MeasureResult?)
+
+    fun put(mm: Int, entryId: Long): Put {
         val next = withDraft(draft().put(mm))
-        val result = next.result()
-        return (if (result != null) next.withDraft(next.draft().copy(savedId = entryId)) else next) to result
+        val result = next.result() ?: return Put(next, null)
+        return Put(next.withDraft(next.draft().copy(savedId = entryId)), result)
     }
 
     fun select(index: Int) = withDraft(draft().select(index))

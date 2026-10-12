@@ -92,9 +92,9 @@ class MeasureViewModel(private val c: AppContainer) : ViewModel() {
             var completed: HistoryEntry? = null
             c.store.updateWorkspace { ws ->
                 val id = System.nanoTime()
-                val (next, result) = ws.put(mm, id)
-                completed = result?.let { HistoryEntry(id, System.currentTimeMillis(), it.mode, it.valuesMm) }
-                next
+                val put = ws.put(mm, id)
+                completed = put.completed?.let { HistoryEntry(id, System.currentTimeMillis(), it.mode, it.valuesMm) }
+                put.workspace
             }
             completed?.let { c.store.addHistory(it) }
         }

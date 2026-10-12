@@ -94,6 +94,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
 import dev.bezh.zamer.domain.Formatter
@@ -634,12 +635,22 @@ private fun SketchCanvas(
                 val a = at(e.a)
                 val b = at(e.b)
                 val selected = SideRef(s.id, side) == target
-                label(
-                    text = mm?.let { formatter.length(it).toString() } ?: "?",
+                val text = mm?.let { formatter.length(it).toString() } ?: "?"
+                val color = if (selected) scheme.onPrimary else scheme.onSurface
+                // Shrinks the text to fit a short side, and moves it off the side if even the smallest won't fit.
+                val room = (b - a).getDistance()
+                var style = labelStyle.copy(color = color)
+                var layout = measurer.measure(text, style)
+                while (pillWidth(layout) > room && style.fontSize > MinLabelSize) {
+                    style = style.copy(fontSize = maxOf(style.fontSize.value - 1f, MinLabelSize.value).sp)
+                    layout = measurer.measure(text, style)
+                }
+                pill(
+                    text = layout,
                     center = (a + b) / 2f,
                     degrees = upright(Math.toDegrees(atan2(b.y - a.y, b.x - a.x).toDouble()).toFloat()),
                     background = if (selected) scheme.primary else scheme.surfaceContainerHigh,
-                    color = if (selected) scheme.onPrimary else scheme.onSurface,
+                    beside = pillWidth(layout) > room,
                 )
             }
             if (s is Rect) {
@@ -667,11 +678,21 @@ private fun upright(degrees: Float) = when {
     else -> degrees
 }
 
-private fun DrawScope.pill(text: TextLayoutResult, center: Offset, degrees: Float, background: Color) {
-    val w = text.size.width + 12.dp.toPx()
+/** Side labels shrink no smaller than this to fit a short side. */
+private val MinLabelSize = 9.sp
+
+private fun DrawScope.pillWidth(text: TextLayoutResult) = text.size.width + 12.dp.toPx()
+
+/**
+ * [text] on a rounded pill centred on [center] and turned [degrees]; [beside] lifts it clear of the line under it,
+ * which is outward for a rectangle's top and left sides.
+ */
+private fun DrawScope.pill(text: TextLayoutResult, center: Offset, degrees: Float, background: Color, beside: Boolean = false) {
+    val w = pillWidth(text)
     val h = text.size.height + 4.dp.toPx()
+    val c = if (beside) center - Offset(0f, h / 2 + 5.dp.toPx()) else center
     rotate(degrees, pivot = center) {
-        drawRoundRect(background, Offset(center.x - w / 2, center.y - h / 2), Size(w, h), CornerRadius(h / 2))
-        drawText(text, topLeft = Offset(center.x - text.size.width / 2f, center.y - text.size.height / 2f))
+        drawRoundRect(background, Offset(c.x - w / 2, c.y - h / 2), Size(w, h), CornerRadius(h / 2))
+        drawText(text, topLeft = Offset(c.x - text.size.width / 2f, c.y - text.size.height / 2f))
     }
 }

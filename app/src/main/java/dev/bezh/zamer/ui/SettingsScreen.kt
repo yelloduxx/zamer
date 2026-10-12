@@ -50,7 +50,6 @@ import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
-import dev.bezh.zamer.ble.DeviceUnit
 import dev.bezh.zamer.ble.LinkState
 import dev.bezh.zamer.ble.ReferenceEdge
 import dev.bezh.zamer.data.Settings
@@ -115,11 +114,7 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
                 selected = settings.units,
                 onSelect = { u ->
                     update { it.copy(units = u) }
-                    if (connected) {
-                        scope.launch {
-                            container.repository.setDeviceUnit(if (u == UnitSystem.IMPERIAL) DeviceUnit.FEET else DeviceUnit.METRES)
-                        }
-                    }
+                    if (connected) scope.launch { container.repository.setUnits(u) }
                 },
             )
             Text(

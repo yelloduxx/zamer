@@ -1,5 +1,7 @@
 package dev.bezh.zamer.ble
 
+import dev.bezh.zamer.domain.UnitSystem
+
 data class Attribute(val type: Int, val id: Int, val value: Long)
 
 @ConsistentCopyVisibility
@@ -90,5 +92,11 @@ object DeviceAttr {
 enum class ReferenceEdge { REAR, FRONT }
 
 enum class DeviceUnit { METRES, FEET }
+
+val UnitSystem.deviceUnit: DeviceUnit
+    get() = when (this) {
+        UnitSystem.METRIC -> DeviceUnit.METRES
+        UnitSystem.IMPERIAL -> DeviceUnit.FEET
+    }
 
 data class DeviceSettings(val reference: ReferenceEdge? = null, val unit: DeviceUnit? = null)

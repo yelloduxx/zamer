@@ -180,17 +180,22 @@ class RangefinderRepository(
             ReferenceEdge.entries.getOrNull(v.toInt())?.let { r -> _device.update { it.copy(reference = r) } }
         }
         report.valueOf(DeviceAttr.SETTING_TYPE, DeviceAttr.UNIT_ID)?.let { v ->
-            DeviceUnit.entries.getOrNull(v.toInt())?.let { u ->
-                _device.update { it.copy(unit = u) }
-                val wanted = if (store.settings.first().units == UnitSystem.IMPERIAL) DeviceUnit.FEET else DeviceUnit.METRES
-                if (u != wanted) setDeviceUnit(wanted)
+            DeviceUnit.entries.getOrNull(v.toInt())?.let { shown ->
+                _device.update { it.copy(unit = shown) }
+                keepDeviceOnAppUnits(shown)
             }
         }
     }
 
+    /** The rangefinder has no unit button, so the app's setting is the only one a person chose. */
+    private suspend fun keepDeviceOnAppUnits(shown: DeviceUnit) {
+        val units = store.settings.first().units
+        if (shown != units.deviceUnit) setUnits(units)
+    }
+
     suspend fun setReference(edge: ReferenceEdge): Boolean = sendSetting(DeviceAttr.REFERENCE_ID, edge.ordinal)
 
-    suspend fun setDeviceUnit(unit: DeviceUnit): Boolean = sendSetting(DeviceAttr.UNIT_ID, unit.ordinal)
+    suspend fun setUnits(units: UnitSystem): Boolean = sendSetting(DeviceAttr.UNIT_ID, units.deviceUnit.ordinal)
 
     private suspend fun sendSetting(id: Int, value: Int): Boolean {
         if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return false

@@ -49,7 +49,7 @@
     <string name="sketch_clear_confirm">Die ganze Skizze löschen?</string>
     <string name="action_back">Zurück</string>
 
-    <string name="action_undo">Zurück</string>
+    <string name="action_undo">Rückgängig</string>
     <string name="action_reset">Von vorn</string>
     <string name="action_copy">Kopieren</string>
     <string name="action_share">Teilen</string>

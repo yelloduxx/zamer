@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,7 +26,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Undo
@@ -92,7 +94,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
 import dev.bezh.zamer.domain.Formatter
@@ -166,16 +167,11 @@ fun SketchScreen(
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
             }
-            Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                Text(stringResource(R.string.sketch_title), style = MaterialTheme.typography.titleLarge)
-                sketch.totalArea?.let {
-                    Text(
-                        stringResource(R.string.sketch_total_area, formatter.area(it).toString()),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
+            Text(
+                stringResource(R.string.sketch_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f).padding(start = 4.dp),
+            )
             IconButton(onClick = { fits++ }, enabled = sketch.shapes.isNotEmpty()) {
                 Icon(Icons.Rounded.FitScreen, contentDescription = stringResource(R.string.sketch_fit))
             }
@@ -187,6 +183,7 @@ fun SketchScreen(
                 compact = true,
             )
         }
+        Box(inset.weight(1f).fillMaxWidth()) {
         SketchCanvas(
             sketch = sketch,
             tool = tool,
@@ -201,8 +198,15 @@ fun SketchScreen(
             onMove = vm::move,
             onPickUp = { if (ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
             onTouch = { editing = null },
-            modifier = inset.weight(1f).fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
         )
+            sketch.totalArea?.let {
+                AreaBadge(
+                    stringResource(R.string.sketch_total_area, formatter.area(it).toString()),
+                    Modifier.align(Alignment.TopStart).padding(12.dp),
+                )
+            }
+        }
         val typing = editing
         if (typing != null) {
             val measured = sketch.shapes.firstOrNull { it.id == typing.shapeId }?.sides?.getOrNull(typing.side)
@@ -325,17 +329,19 @@ internal fun LengthField(
 }
 
 /** Icon over label, so three actions fit side by side on a narrow phone. */
+/** The sketch's total area, over the canvas's corner where the top bar has no room for it in every language. */
+@Composable
+internal fun AreaBadge(text: String, modifier: Modifier = Modifier) {
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = modifier) {
+        Text(text, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
+    }
+}
+
 @Composable
 internal fun ActionLabel(icon: ImageVector, label: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-        Text(
-            stringResource(label),
-            maxLines = 1,
-            softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
-            style = MaterialTheme.typography.labelLarge,
-        )
+        FitText(stringResource(label), style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -362,11 +368,8 @@ internal fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, 
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(
+                FitText(
                     stringResource(if (t == SketchTool.LINE) R.string.sketch_tool_line else R.string.sketch_tool_rect),
-                    maxLines = 1,
-                    softWrap = false,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
                     style = MaterialTheme.typography.labelLarge,
                 )
             }

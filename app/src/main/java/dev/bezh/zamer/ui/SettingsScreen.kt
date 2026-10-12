@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -96,10 +97,7 @@ fun SettingsScreen(container: AppContainer, contentPadding: PaddingValues, onRep
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
-                FilledTonalButton(onClick = onRepair, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.settings_repair)) }
-                TextButton(onClick = { confirmForget = true }) { Text(stringResource(R.string.settings_forget)) }
-            }
+            DeviceActions(onRepair = onRepair, onForget = { confirmForget = true })
         }
 
         SettingsCard(stringResource(R.string.settings_rangefinder)) {
@@ -250,6 +248,20 @@ internal fun SettingsCard(title: String?, icon: (@Composable () -> Unit)? = null
     }
 }
 
+/** Two buttons that move onto separate lines when a language makes them too wide for one. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun DeviceActions(onRepair: () -> Unit, onForget: () -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(top = 8.dp),
+    ) {
+        FilledTonalButton(onClick = onRepair, shapes = ButtonDefaults.shapes()) { FitText(stringResource(R.string.settings_repair)) }
+        TextButton(onClick = onForget) { FitText(stringResource(R.string.settings_forget)) }
+    }
+}
+
 @Composable
 internal fun SwitchRow(label: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -274,7 +286,7 @@ internal fun <T> Segmented(options: List<Pair<Int, T>>, selected: T?, onSelect: 
                     options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                 },
-            ) { Text(stringResource(label), maxLines = 1, softWrap = false) }
+            ) { FitText(stringResource(label)) }
         }
     }
 }

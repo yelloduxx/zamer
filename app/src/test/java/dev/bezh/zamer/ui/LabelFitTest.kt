@@ -87,7 +87,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 // SDK 35+ sandboxes need Java 21; the build runs on 17.
 @Config(sdk = [34])
-abstract class LabelFitTest(private val locale: String, private val translated: Boolean = true) {
+abstract class LabelFitTest(private val locale: String) {
     // Robolectric reads the app's manifest, which never lists the compose test host; register it here
     // so ui-test-manifest need not leak into the debug APK.
     private val registerHost = object : ExternalResource() {
@@ -119,6 +119,7 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
 
     @Test
     fun sketch() = render("sketch") {
+        AreaBadge(stringResource(R.string.sketch_total_area, formatter.area(1234.5).toString()), inset)
         ToolSelector(SketchTool.LINE, onSelect = {}, modifier = inset)
         // Mirrors the action row inlined in SketchScreen.
         Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -136,10 +137,8 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
         }
     }
 
-    // The area line shares the bar with the pill's button and wraps even in English at 1.3; no correct
-    // wording of "Area" fits beside every button, so it is reported, not enforced.
     @Test
-    fun sketchTopBar() = render("sketch-topbar", known = { it.startsWith(compose.activity.getString(R.string.sketch_total_area, "")) }) {
+    fun sketchTopBar() = render("sketch-topbar") {
         // Mirrors the top bar inlined in SketchScreen, once per pill state that carries a button.
         listOf(LinkState.NeedsPermission, LinkState.BluetoothOff, LinkState.NeedsRepair, LinkState.NotPaired).forEach { link ->
             Row(
@@ -147,14 +146,11 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton({}) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back)) }
-                Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text(stringResource(R.string.sketch_title), style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        stringResource(R.string.sketch_total_area, formatter.area(12.5).toString()),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+                Text(
+                    stringResource(R.string.sketch_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp),
+                )
                 IconButton({}) { Icon(Icons.Rounded.FitScreen, stringResource(R.string.sketch_fit)) }
                 ConnectionPill(link, onRequestPermission = {}, onEnableBluetooth = {}, onPair = {}, compact = true)
             }
@@ -198,10 +194,7 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
             // Mirrors the paired-device card inlined in SettingsScreen.
             SettingsCard(stringResource(R.string.settings_device)) {
                 Text("HOTO", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    FilledTonalButton({}, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.settings_repair)) }
-                    TextButton({}) { Text(stringResource(R.string.settings_forget)) }
-                }
+                DeviceActions(onRepair = {}, onForget = {})
             }
             SettingsCard(stringResource(R.string.settings_rangefinder)) {
                 Text(stringResource(R.string.device_reference), style = MaterialTheme.typography.titleSmall)
@@ -297,7 +290,7 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
         TabSelector(HistoryTab.Results, onSelect = {}, modifier = inset)
     }
 
-    private fun render(name: String, known: (String) -> Boolean = { false }, content: @Composable () -> Unit) {
+    private fun render(name: String, content: @Composable () -> Unit) {
         compose.setContent {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, fontScale)) {
@@ -314,14 +307,11 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
             compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name-$locale-x$scale.png")
             labelsThatDoNotFit().map { (text, problem) -> text to "[$locale x$scale] $problem" }
         }
-        report(problems, known)
+        report(problems)
     }
 
-    private fun report(problems: List<Pair<String, String>>, known: (String) -> Boolean = { false }) {
-        problems.forEach { (text, problem) -> println(if (known(text)) "known: $problem" else problem) }
-        // English and Russian are the owner's source text and stay as written; only report them.
-        val enforced = problems.filterNot { (text, _) -> known(text) }.map { it.second }
-        if (translated) assertTrue(enforced.joinToString("\n"), enforced.isEmpty())
+    private fun report(problems: List<Pair<String, String>>) {
+        assertTrue(problems.joinToString("\n") { it.second }, problems.isEmpty())
     }
 
     /** Each label that does not fit on one line in the width it got, as its text and the reason. */
@@ -350,10 +340,10 @@ abstract class LabelFitTest(private val locale: String, private val translated: 
 }
 
 @Config(qualifiers = "en-w360dp-h800dp")
-class LabelFitEnTest : LabelFitTest("en", translated = false)
+class LabelFitEnTest : LabelFitTest("en")
 
 @Config(qualifiers = "ru-w360dp-h800dp")
-class LabelFitRuTest : LabelFitTest("ru", translated = false)
+class LabelFitRuTest : LabelFitTest("ru")
 
 @Config(qualifiers = "es-w360dp-h800dp")
 class LabelFitEsTest : LabelFitTest("es")

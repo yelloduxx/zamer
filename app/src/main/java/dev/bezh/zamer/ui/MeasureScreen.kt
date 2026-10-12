@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Draw
@@ -231,13 +230,7 @@ internal fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit
                     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                 },
             ) {
-                Text(
-                    text = stringResource(mode.label),
-                    maxLines = 1,
-                    softWrap = false,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = MaterialTheme.typography.labelLarge.fontSize),
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                FitText(stringResource(mode.label), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -458,7 +451,7 @@ internal fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit
         ) {
             Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = null, modifier = Modifier.size(26.dp))
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.action_undo), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+            FitText(stringResource(R.string.action_undo), style = MaterialTheme.typography.titleMedium)
         }
         Button(
             onClick = onReset,
@@ -468,7 +461,7 @@ internal fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit
         ) {
             Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(26.dp))
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.action_reset), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+            FitText(stringResource(R.string.action_reset), style = MaterialTheme.typography.titleMedium)
         }
     }
 }

@@ -95,7 +95,7 @@
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Тёмная</string>
     <string name="settings_keep_on">Не гасить экран</string>
-    <string name="settings_haptics">Вибрация при каждом замере</string>
+    <string name="settings_haptics">Вибрация при замере</string>
     <string name="settings_dynamic">Цвета из обоев</string>
     <string name="settings_repair">Спарить заново</string>
     <string name="settings_forget">Забыть дальномер</string>

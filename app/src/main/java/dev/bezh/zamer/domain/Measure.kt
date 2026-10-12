@@ -57,7 +57,8 @@ data class MeasureResult private constructor(
 
 /** A number and its unit, kept apart so the UI can size them differently. */
 data class Quantity(val number: String, val unit: String) {
-    override fun toString() = "$number $unit"
+    /** A no-break space keeps the unit on the number's line. */
+    override fun toString() = "$number\u00A0$unit"
 }
 
 /** Renders values according to the user's unit and precision settings. */

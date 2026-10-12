@@ -163,7 +163,7 @@ internal fun TabSelector(selected: HistoryTab, onSelect: (HistoryTab) -> Unit, m
                 onCheckedChange = { onSelect(t) },
                 modifier = Modifier.weight(1f).height(48.dp).semantics { role = Role.Tab },
                 shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes() else ButtonGroupDefaults.connectedTrailingButtonShapes(),
-            ) { Text(stringResource(t.label), maxLines = 1) }
+            ) { FitText(stringResource(t.label)) }
         }
     }
 }

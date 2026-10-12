@@ -30,7 +30,9 @@ import androidx.compose.material.icons.rounded.ViewInAr
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
@@ -59,7 +61,9 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.bezh.zamer.AppContainer
 import dev.bezh.zamer.R
 import dev.bezh.zamer.ble.LinkState
@@ -165,11 +169,11 @@ fun ConnectionPill(
             }
             if (!compact) {
                 Spacer(Modifier.width(8.dp))
-                Text(labelText, style = MaterialTheme.typography.labelLarge)
+                FitText(labelText, Modifier.weight(1f, fill = false), MaterialTheme.typography.labelLarge)
             }
             if (action != null) {
                 Spacer(Modifier.width(4.dp))
-                TextButton(onClick = action.second) { Text(stringResource(action.first)) }
+                TextButton(onClick = action.second) { FitText(stringResource(action.first)) }
             }
         }
     }
@@ -232,6 +236,19 @@ fun NameField(initial: String?, onCommit: (String) -> Unit, modifier: Modifier =
                 if (focused && !it.isFocused) commit()
                 focused = it.isFocused
             },
+    )
+}
+
+/** A one-line label that shrinks to fit its button instead of wrapping or being cut off, in any language. */
+@Composable
+fun FitText(text: String, modifier: Modifier = Modifier, style: TextStyle = LocalTextStyle.current) {
+    Text(
+        text,
+        modifier = modifier,
+        style = style,
+        maxLines = 1,
+        softWrap = false,
+        autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = style.fontSize, stepSize = 0.5.sp),
     )
 }
 

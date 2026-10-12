@@ -29,12 +29,25 @@ class SessionKeys(
         return DeviceFrame.parse(plain)
     }
 
-    fun encrypt(plain: ByteArray, counter: Int): ByteArray =
-        byteArrayOf(counter.toByte(), (counter shr 8).toByte()) + MiCrypto.ccmEncrypt(appKey, nonce(appIv, counter), plain)
-
-    private fun nonce(iv: ByteArray, counter: Int) =
-        iv + ByteArray(4) + byteArrayOf(counter.toByte(), (counter shr 8).toByte(), (counter shr 16).toByte(), (counter shr 24).toByte())
 }
+
+class AppFrame private constructor(internal val bytes: ByteArray) {
+    /** One per connection: the device ignores a counter it has already seen. */
+    class Sealer(private val keys: SessionKeys) {
+        private var counter = 0
+
+        fun seal(plain: ByteArray): AppFrame {
+            counter++
+            return AppFrame(
+                byteArrayOf(counter.toByte(), (counter shr 8).toByte()) +
+                    MiCrypto.ccmEncrypt(keys.appKey, nonce(keys.appIv, counter), plain),
+            )
+        }
+    }
+}
+
+private fun nonce(iv: ByteArray, counter: Int) =
+    iv + ByteArray(4) + byteArrayOf(counter.toByte(), (counter shr 8).toByte(), (counter shr 16).toByte(), (counter shr 24).toByte())
 
 class MiAuth(
     private val link: AuthLink,

@@ -1,5 +1,6 @@
 package dev.bezh.zamer
 
+import dev.bezh.zamer.ble.AppFrame
 import dev.bezh.zamer.ble.AuthLink
 import dev.bezh.zamer.ble.MiAuth
 import dev.bezh.zamer.ble.MiCrypto
@@ -131,12 +132,15 @@ class MiProtocolTest {
     }
 
     @Test
-    fun encryptsCommandsWithTheAppKey() {
+    fun sealsCommandsWithTheAppKeyUnderAGrowingCounter() {
         val command = DeviceAttr.set(msgId = MsgId(3), id = DeviceAttr.UNIT_ID, value = 1)
         assertEquals("03000401020201", command.toHex())
-        val frame = session.encrypt(command, counter = 5)
+        val sealer = AppFrame.Sealer(session)
+        val counters = List(5) { sealer.seal(command).bytes }.map { it.copyOfRange(0, 2).toHex() }
+        assertEquals(listOf("0100", "0200", "0300", "0400", "0500"), counters)
+
+        val frame = AppFrame.Sealer(session).also { s -> repeat(4) { s.seal(ByteArray(0)) } }.seal(command).bytes
         assertEquals(13, frame.size)
-        assertEquals("0500", frame.copyOfRange(0, 2).toHex())
         val nonce = session.appIv + ByteArray(4) + byteArrayOf(5, 0, 0, 0)
         assertArrayEquals(command, MiCrypto.ccmDecrypt(session.appKey, nonce, frame.copyOfRange(2, frame.size)))
     }

@@ -125,7 +125,7 @@ class GattLink(private val context: Context) : AuthLink {
     override suspend fun writeAvdtp(data: ByteArray) = write(avdtpChar, data)
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    suspend fun writeData(frame: ByteArray) = write(dataWriteChar, frame)
+    suspend fun writeData(frame: AppFrame) = write(dataWriteChar, frame.bytes)
 
     fun close() {
         gatt?.let {

@@ -146,10 +146,10 @@ class RangefinderRepository(
                 for (frame in link.sessionFrames) {
                     when (val decrypted = keys.decrypt(frame)) {
                         is DeviceFrame.Report -> {
-                            current.send(decrypted.header.ack())
+                            current.ack(decrypted.header)
                             onReport(decrypted)
                         }
-                        is DeviceFrame.MultiFrameReport -> current.send(decrypted.header.ack())
+                        is DeviceFrame.MultiFrameReport -> current.ack(decrypted.header)
                         is DeviceFrame.Other, null -> Unit
                     }
                 }
@@ -192,20 +192,21 @@ class RangefinderRepository(
     private suspend fun sendSetting(id: Int, value: Int): Boolean {
         if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return false
         val s = session ?: return false
-        return runCatching { s.send(DeviceAttr.set(s.nextMsgId(), id, value)) }.isSuccess
+        return runCatching { s.set(id, value) }.isSuccess
     }
 
-    private class Session(private val link: GattLink, private val keys: SessionKeys) {
+    private class Session(private val link: GattLink, keys: SessionKeys) {
         private val lock = Mutex()
-        private var counter = 0
+        private val sealer = AppFrame.Sealer(keys)
         private var msgId = MsgId(MsgId.MAX)
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-        suspend fun send(plain: ByteArray) = lock.withLock { link.writeData(keys.encrypt(plain, ++counter)) }
+        suspend fun ack(header: Header) = lock.withLock { link.writeData(sealer.seal(header.ack())) }
 
-        fun nextMsgId(): MsgId = synchronized(this) {
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        suspend fun set(id: Int, value: Int) = lock.withLock {
             msgId = msgId.next()
-            msgId
+            link.writeData(sealer.seal(DeviceAttr.set(msgId, id, value)))
         }
     }
 

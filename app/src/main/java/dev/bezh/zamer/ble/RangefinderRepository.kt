@@ -2,6 +2,7 @@ package dev.bezh.zamer.ble
 
 import android.Manifest
 import android.content.Context
+import android.util.Log
 import android.content.pm.PackageManager
 import androidx.annotation.RequiresPermission
 import dev.bezh.zamer.data.AppStore
@@ -125,6 +126,7 @@ class RangefinderRepository(
 
     private suspend fun connectionLoop(paired: PairedDevice) {
         val token = PairingToken.fromHex(paired.tokenHex) ?: run {
+            Log.w(TAG, "Stored pairing token is not ${PairingToken.SIZE} bytes of hex")
             _state.value = LinkState.NeedsRepair
             return
         }
@@ -166,9 +168,11 @@ class RangefinderRepository(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: PairingRejectedException) {
+                Log.w(TAG, "Login rejected: ${e.message}")
                 _state.value = LinkState.NeedsRepair
                 return
             } catch (e: Exception) {
+                Log.i(TAG, "Connection dropped", e)
                 failures++
             } finally {
                 session = null
@@ -235,6 +239,7 @@ class RangefinderRepository(
     }
 
     companion object {
+        private const val TAG = "Zamer"
         private const val SCAN_WINDOW_MS = 20_000L
 
         val REQUIRED_PERMISSIONS = arrayOf(

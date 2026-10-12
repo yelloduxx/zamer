@@ -214,7 +214,7 @@ fun SketchScreen(
                     valid = { formatter.parseLength(it) != null },
                     onDone = { text ->
                         // A shown value is rounded; putting it back unchanged would nudge the drawing.
-                        if (text.trim() == shown) {
+                        if (text.isNotBlank() && text.trim() == shown) {
                             editing = null
                         } else {
                             formatter.parseLength(text)?.let {

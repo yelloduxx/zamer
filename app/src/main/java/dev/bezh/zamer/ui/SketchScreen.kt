@@ -335,33 +335,35 @@ fun SketchScreen(
                 modifier = inset,
             )
         }
-        if (ui.recent.isNotEmpty()) {
-            RecentReadings(ui.recent, formatter, inset) { vm.put(it) }
-        }
-        ToolSelector(tool, { tool = it }, inset)
-        Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val action = Modifier.weight(1f).height(72.dp)
-            FilledTonalButton(
-                onClick = vm::undo,
-                enabled = sketch.shapes.isNotEmpty() || sketch.past.isNotEmpty(),
-                modifier = action,
-                contentPadding = ActionPadding,
-                shapes = ButtonDefaults.shapes(),
-            ) { ActionLabel(Icons.AutoMirrored.Rounded.Undo, R.string.action_undo) }
-            FilledTonalButton(
-                onClick = { if (pickedNote != null) vm.erase(pickedNote) else vm.deleteSelected() },
-                enabled = sketch.target != null || pickedNote != null,
-                modifier = action,
-                contentPadding = ActionPadding,
-                shapes = ButtonDefaults.shapes(),
-            ) { ActionLabel(Icons.Rounded.Delete, R.string.action_delete) }
-            Button(
-                onClick = { confirmClear = true },
-                enabled = sketch.shapes.isNotEmpty(),
-                modifier = action,
-                contentPadding = ActionPadding,
-                shapes = ButtonDefaults.shapes(),
-            ) { ActionLabel(Icons.Rounded.DeleteSweep, R.string.action_clear) }
+        if (editing == null) {
+            if (ui.recent.isNotEmpty()) {
+                RecentReadings(ui.recent, formatter, inset) { vm.put(it) }
+            }
+            ToolSelector(tool, { tool = it }, inset)
+            Row(inset.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val action = Modifier.weight(1f).height(72.dp)
+                FilledTonalButton(
+                    onClick = vm::undo,
+                    enabled = sketch.shapes.isNotEmpty() || sketch.past.isNotEmpty(),
+                    modifier = action,
+                    contentPadding = ActionPadding,
+                    shapes = ButtonDefaults.shapes(),
+                ) { ActionLabel(Icons.AutoMirrored.Rounded.Undo, R.string.action_undo) }
+                FilledTonalButton(
+                    onClick = { if (pickedNote != null) vm.erase(pickedNote) else vm.deleteSelected() },
+                    enabled = sketch.target != null || pickedNote != null,
+                    modifier = action,
+                    contentPadding = ActionPadding,
+                    shapes = ButtonDefaults.shapes(),
+                ) { ActionLabel(Icons.Rounded.Delete, R.string.action_delete) }
+                Button(
+                    onClick = { confirmClear = true },
+                    enabled = sketch.shapes.isNotEmpty(),
+                    modifier = action,
+                    contentPadding = ActionPadding,
+                    shapes = ButtonDefaults.shapes(),
+                ) { ActionLabel(Icons.Rounded.DeleteSweep, R.string.action_clear) }
+            }
         }
     }
 

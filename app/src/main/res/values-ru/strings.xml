@@ -40,9 +40,9 @@
 
     <string name="sketch_title">Эскиз</string>
     <string name="sketch_total_area">Площадь: %1$s</string>
-    <string name="sketch_prompt_measure">Измерьте выделенную сторону дальномером</string>
+    <string name="sketch_prompt_measure">Измерьте выделенную сторону дальномером или коснитесь её дважды, чтобы ввести длину</string>
     <string name="sketch_prompt_draw">Нарисуйте линию или прямоугольник</string>
-    <string name="sketch_prompt_select">Коснитесь стороны, чтобы перемерить</string>
+    <string name="sketch_prompt_select">Коснитесь стороны, чтобы перемерить, или дважды, чтобы ввести длину</string>
     <string name="sketch_tool_line">Линия</string>
     <string name="sketch_tool_rect">Прямоугольник</string>
     <string name="sketch_fit">Показать всё</string>
@@ -54,6 +54,7 @@
     <string name="action_copy">Копировать</string>
     <string name="action_share">Поделиться</string>
     <string name="action_delete">Удалить</string>
+    <string name="action_apply">Применить</string>
     <string name="action_cancel">Отмена</string>
     <string name="action_save">Сохранить</string>
     <string name="action_clear">Очистить</string>

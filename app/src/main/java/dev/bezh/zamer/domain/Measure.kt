@@ -2,6 +2,7 @@ package dev.bezh.zamer.domain
 
 import kotlinx.serialization.Serializable
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** One reading the user is asked for. */
@@ -69,6 +70,13 @@ class Formatter(
 
     fun length(mm: Int): Quantity = lengthFromMetres(mm / 1000.0)
 
+    /** Millimetres in a length typed in the user's unit with a decimal comma or dot; null unless it is one. */
+    fun parseLength(text: String): Int? {
+        val number = text.trim().replace(',', '.').takeIf { Typed.matches(it) }?.toDouble() ?: return null
+        val mm = (number * if (units == UnitSystem.METRIC) 1000.0 else MM_PER_FT).roundToInt()
+        return mm.takeIf { it in 1..MAX_TYPED_MM }
+    }
+
     fun lengthFromMetres(metres: Double): Quantity = when (units) {
         UnitSystem.METRIC -> Quantity(fmt(metres, decimals), "m")
         UnitSystem.IMPERIAL -> Quantity(fmt(metres * ftPerM, minOf(decimals, 2)), "ft")
@@ -99,4 +107,12 @@ class Formatter(
     }
 
     private fun fmt(v: Double, digits: Int) = String.format(locale, "%.${digits}f", v)
+
+    private companion object {
+        val Typed = Regex("""\d+(\.\d*)?|\.\d+""")
+        const val MM_PER_FT = 304.8
+
+        /** A kilometre: longer than any rangefinder reaches, so anything past it is a typo. */
+        const val MAX_TYPED_MM = 1_000_000
+    }
 }

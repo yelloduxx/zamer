@@ -40,9 +40,9 @@
 
     <string name="sketch_title">Sketch</string>
     <string name="sketch_total_area">Area: %1$s</string>
-    <string name="sketch_prompt_measure">Measure the highlighted side with the rangefinder</string>
+    <string name="sketch_prompt_measure">Measure the highlighted side with the rangefinder, or double-tap it to type the length</string>
     <string name="sketch_prompt_draw">Draw a line or a rectangle</string>
-    <string name="sketch_prompt_select">Tap a side to measure it again</string>
+    <string name="sketch_prompt_select">Tap a side to measure it again, double-tap to type its length</string>
     <string name="sketch_tool_line">Line</string>
     <string name="sketch_tool_rect">Rectangle</string>
     <string name="sketch_fit">Show everything</string>
@@ -54,6 +54,7 @@
     <string name="action_copy">Copy</string>
     <string name="action_share">Share</string>
     <string name="action_delete">Delete</string>
+    <string name="action_apply">Apply</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
     <string name="action_clear">Clear</string>

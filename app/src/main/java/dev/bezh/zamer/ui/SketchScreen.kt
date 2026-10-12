@@ -1,5 +1,6 @@
 package dev.bezh.zamer.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -20,10 +21,14 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CropSquare
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
@@ -34,16 +39,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +62,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -74,7 +84,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -131,6 +145,10 @@ fun SketchScreen(
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var fits by remember { mutableIntStateOf(0) }
     val sketch = ui.sketch ?: Sketch()
+    // The side whose length is being typed; it is also the target, so the typed value goes where a reading would.
+    var editing by remember { mutableStateOf<SideRef?>(null) }
+    LaunchedEffect(sketch.target) { if (sketch.target != editing) editing = null }
+    BackHandler(enabled = editing != null) { editing = null }
 
     Column(
         modifier = Modifier
@@ -175,20 +193,51 @@ fun SketchScreen(
             fits = fits,
             onDraw = { a, b -> vm.draw(tool, a, b) },
             onSelect = vm::select,
+            onEdit = {
+                vm.select(it)
+                editing = it
+            },
+            onTouch = { editing = null },
             modifier = inset.weight(1f).fillMaxWidth(),
         )
-        Text(
-            stringResource(
-                when {
-                    sketch.target != null -> R.string.sketch_prompt_measure
-                    sketch.shapes.isEmpty() -> R.string.sketch_prompt_draw
-                    else -> R.string.sketch_prompt_select
-                },
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = inset,
-        )
+        val typing = editing
+        if (typing != null) {
+            val measured = sketch.shapes.firstOrNull { it.id == typing.shapeId }?.sides?.getOrNull(typing.side)
+            val shown = measured?.let { formatter.length(it).number }.orEmpty()
+            key(typing) {
+                LengthField(
+                    initial = shown,
+                    unit = formatter.length(0).unit,
+                    valid = { formatter.parseLength(it) != null },
+                    onDone = { text ->
+                        // A shown value is rounded; putting it back unchanged would nudge the drawing.
+                        if (text.trim() == shown) {
+                            editing = null
+                        } else {
+                            formatter.parseLength(text)?.let {
+                                editing = null
+                                vm.put(it)
+                            }
+                        }
+                    },
+                    onCancel = { editing = null },
+                    modifier = inset,
+                )
+            }
+        } else {
+            Text(
+                stringResource(
+                    when {
+                        sketch.target != null -> R.string.sketch_prompt_measure
+                        sketch.shapes.isEmpty() -> R.string.sketch_prompt_draw
+                        else -> R.string.sketch_prompt_select
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = inset,
+            )
+        }
         if (ui.recent.isNotEmpty()) {
             RecentReadings(ui.recent, formatter, inset) { vm.put(it) }
         }
@@ -235,6 +284,42 @@ fun SketchScreen(
 }
 
 private val ActionPadding = PaddingValues(horizontal = 8.dp)
+
+/** A side's length typed in [unit], opened with the keyboard up; [onDone] gets the text when the user confirms it. */
+@Composable
+private fun LengthField(
+    initial: String,
+    unit: String,
+    valid: (String) -> Boolean,
+    onDone: (String) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length)))
+    }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = { Text(stringResource(R.string.slot_length)) },
+            suffix = { Text(unit) },
+            isError = text.text.isNotBlank() && !valid(text.text),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onDone(text.text) }),
+            modifier = Modifier.weight(1f).focusRequester(focus),
+        )
+        IconButton(onClick = onCancel) {
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_cancel))
+        }
+        FilledIconButton(onClick = { onDone(text.text) }) {
+            Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.action_apply))
+        }
+    }
+}
 
 /** Icon over label, so three actions fit side by side on a narrow phone. */
 @Composable
@@ -300,6 +385,8 @@ private fun SketchCanvas(
     fits: Int,
     onDraw: (Pt, Pt) -> Unit,
     onSelect: (SideRef) -> Unit,
+    onEdit: (SideRef) -> Unit,
+    onTouch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -351,6 +438,8 @@ private fun SketchCanvas(
     val current by rememberUpdatedState(sketch)
     val draw by rememberUpdatedState(onDraw)
     val select by rememberUpdatedState(onSelect)
+    val edit by rememberUpdatedState(onEdit)
+    val touch by rememberUpdatedState(onTouch)
 
     val scheme = MaterialTheme.colorScheme
     val measurer = rememberTextMeasurer()
@@ -362,8 +451,16 @@ private fun SketchCanvas(
             .background(scheme.surfaceContainerLow)
             .onSizeChanged { canvasSize = it }
             .pointerInput(Unit) {
+                // When and where the last tap lifted, so a second tap soon after nearby makes a double tap.
+                var lastTap: Pair<Long, Offset>? = null
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    touch()
+                    val second = lastTap?.let { (at, p) ->
+                        down.uptimeMillis - at <= viewConfiguration.doubleTapTimeoutMillis && (down.position - p).getDistance() <= tapReach
+                    } == true
+                    lastTap = null
+                    var liftedAt = down.uptimeMillis
                     fun mmPerPx() = GRID_MM / (spacing * scale)
                     fun world(p: Offset) = Offset(p.x - originX, p.y - originY) * mmPerPx()
                     fun snap(p: Offset): Pt = world(p).let {
@@ -374,6 +471,7 @@ private fun SketchCanvas(
                     var transforming = false
                     while (true) {
                         val event = awaitPointerEvent()
+                        liftedAt = event.changes.first().uptimeMillis
                         val pressed = event.changes.count { it.pressed }
                         if (pressed == 0) break
                         // Once a second finger lands, the rest of the gesture only moves the view.
@@ -394,7 +492,7 @@ private fun SketchCanvas(
                             continue
                         }
                         val change = event.changes.firstOrNull { it.id == down.id } ?: continue
-                        if (start == null && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                        if (start == null && !second && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
                             start = snap(down.position)
                         }
                         start?.let {
@@ -407,8 +505,14 @@ private fun SketchCanvas(
                     when {
                         transforming -> Unit
                         drawn != null -> draw(drawn.first, drawn.second)
-                        start == null -> world(down.position).let { w ->
-                            current.sideAt(w.x, w.y, tapReach * mmPerPx())?.let(select)
+                        start == null -> {
+                            val side = world(down.position).let { current.sideAt(it.x, it.y, tapReach * mmPerPx()) }
+                            if (second) {
+                                side?.let(edit)
+                            } else {
+                                side?.let(select)
+                                lastTap = liftedAt to down.position
+                            }
                         }
                     }
                 }

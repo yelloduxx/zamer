@@ -66,15 +66,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -86,19 +84,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bezh.zamer.R
+import dev.bezh.zamer.domain.Background
 import dev.bezh.zamer.domain.Formatter
 import dev.bezh.zamer.domain.GRID_MM
 import dev.bezh.zamer.domain.Pt
@@ -108,9 +105,9 @@ import dev.bezh.zamer.domain.SideRef
 import dev.bezh.zamer.domain.Sketch
 import dev.bezh.zamer.domain.SketchShape
 import dev.bezh.zamer.domain.Snap
-import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /** On-screen spacing of the dots, [GRID_MM] apart, at zoom 1. */
 private val GridSpacing = 24.dp
@@ -127,6 +124,9 @@ private const val MAX_SCALE = 4f
 /** Fitting a small sketch stops zooming in here, so a single short line doesn't fill the screen. */
 private const val FIT_MAX_SCALE = 2f
 private val FitPadding = 40.dp
+
+/** How far past fitting the whole photo it can be zoomed in. */
+private const val MAX_PHOTO_ZOOM = 8f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -196,6 +196,8 @@ fun SketchScreen(
             key(doc.id) {
                 SketchCanvas(
                     sketch = sketch,
+                    background = doc.background,
+                    photo = null,
                     tool = tool,
                     formatter = formatter,
                     fits = fits,
@@ -405,13 +407,16 @@ private sealed interface Touch {
 }
 
 /**
- * The dot grid with the sketch on it. One finger draws with [tool] or, without moving, taps a side to select it and
- * double-taps it to [onEdit] it; holding a shape picks it up to drag it. Two fingers pan and zoom. Each increment of
- * [fits] frames the whole sketch.
+ * The sketch over its [background]: a plan's dot grid, or [photo] once it has loaded. One finger draws with [tool] or,
+ * without moving, taps a side to select it and double-taps it to [onEdit] it; holding a shape picks it up to drag it.
+ * Two fingers pan and zoom, never past a photo's edges. Each increment of [fits] frames the whole sketch, or the whole
+ * photo.
  */
 @Composable
 internal fun SketchCanvas(
     sketch: Sketch,
+    background: Background,
+    photo: ImageBitmap?,
     tool: SketchTool,
     formatter: Formatter,
     fits: Int,
@@ -429,39 +434,66 @@ internal fun SketchCanvas(
     val alignReach = with(density) { 15.dp.toPx() }
     val tapReach = with(density) { 24.dp.toPx() }
     val minDotGap = with(density) { MinDotGap.toPx() }
-    var scale by rememberSaveable { mutableFloatStateOf(1f) }
+    val padding = with(density) { FitPadding.toPx() }
+    // Screen pixels per unit of the sketch, a plan's millimetre or a photo's pixel.
+    var pxPerUnit by rememberSaveable { mutableFloatStateOf(spacing / GRID_MM) }
     // Where the sketch's (0, 0) sits on the canvas, in pixels.
     var originX by rememberSaveable { mutableFloatStateOf(spacing) }
     var originY by rememberSaveable { mutableFloatStateOf(spacing) }
+    var framed by rememberSaveable { mutableStateOf(background == Background.Plan) }
     var gesture by remember { mutableStateOf<Touch?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
-    val padding = with(density) { FitPadding.toPx() }
 
-    fun onScreen(p: Pt): Boolean {
-        val pxPerMm = spacing * scale / GRID_MM
-        val x = originX + p.x * pxPerMm
-        val y = originY + p.y * pxPerMm
-        return x in 0f..canvasSize.width.toFloat() && y in 0f..canvasSize.height.toFloat()
+    fun zoomRange(): ClosedFloatingPointRange<Float> = when (background) {
+        Background.Plan -> spacing * MIN_SCALE / GRID_MM..spacing * MAX_SCALE / GRID_MM
+        is Background.Photo -> {
+            val whole = minOf(canvasSize.width.toFloat() / background.width, canvasSize.height.toFloat() / background.height)
+            whole..whole * MAX_PHOTO_ZOOM
+        }
+    }
+
+    /** Keeps a photo filling the view along each side it is longer than the view, and centred along the others. */
+    fun keepOnPhoto() {
+        if (background !is Background.Photo) return
+        fun clamp(origin: Float, extent: Float, room: Float) =
+            if (extent <= room) (room - extent) / 2 else origin.coerceIn(room - extent, 0f)
+        originX = clamp(originX, background.width * pxPerUnit, canvasSize.width.toFloat())
+        originY = clamp(originY, background.height * pxPerUnit, canvasSize.height.toFloat())
     }
 
     fun fit() {
-        val points = sketch.shapes.flatMap { it.points }
-        if (points.isEmpty() || canvasSize == IntSize.Zero) return
-        val left = points.minOf { it.x }
-        val right = points.maxOf { it.x }
-        val top = points.minOf { it.y }
-        val bottom = points.maxOf { it.y }
-        // A straight line has no extent across; the other direction alone decides the zoom.
-        val across = (canvasSize.width - 2 * padding) * GRID_MM / (spacing * (right - left).coerceAtLeast(1))
-        val down = (canvasSize.height - 2 * padding) * GRID_MM / (spacing * (bottom - top).coerceAtLeast(1))
-        scale = minOf(across, down).coerceIn(MIN_SCALE, FIT_MAX_SCALE)
-        val pxPerMm = spacing * scale / GRID_MM
-        originX = canvasSize.width / 2f - (left + right) / 2f * pxPerMm
-        originY = canvasSize.height / 2f - (top + bottom) / 2f * pxPerMm
+        if (canvasSize == IntSize.Zero) return
+        val w = canvasSize.width.toFloat()
+        val h = canvasSize.height.toFloat()
+        val view = when (background) {
+            Background.Plan -> fitView(
+                sketch.shapes.flatMap { it.points }, w, h, padding,
+                zoomRange().start..spacing * FIT_MAX_SCALE / GRID_MM,
+            )
+            is Background.Photo -> fitView(listOf(Pt(0, 0), Pt(background.width, background.height)), w, h, 0f, zoomRange())
+        } ?: return
+        pxPerUnit = view.pxPerUnit
+        originX = view.originX
+        originY = view.originY
+    }
+
+    fun onScreen(p: Pt): Boolean {
+        val at = SketchView(originX, originY, pxPerUnit).at(p)
+        return at.x in 0f..canvasSize.width.toFloat() && at.y in 0f..canvasSize.height.toFloat()
     }
 
     LaunchedEffect(fits) { if (fits > 0) fit() }
-    // Only a reading redraws shapes in place, and a long one can push the sketch past the edge of the view.
+    LaunchedEffect(canvasSize) {
+        if (canvasSize == IntSize.Zero) return@LaunchedEffect
+        if (!framed) {
+            fit()
+            framed = true
+        } else if (background is Background.Photo) {
+            pxPerUnit = pxPerUnit.coerceIn(zoomRange())
+            keepOnPhoto()
+        }
+    }
+    // Only a reading redraws shapes in place, and a long one can push a plan past the edge of the view.
     var shown by remember { mutableStateOf(sketch.shapes) }
     LaunchedEffect(sketch.shapes) {
         val before = shown
@@ -482,11 +514,20 @@ internal fun SketchCanvas(
     val scheme = MaterialTheme.colorScheme
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelLarge
+    val labels = remember(measurer, labelStyle, formatter) { SketchLabels(measurer, labelStyle, formatter) }
+    val colors = when (background) {
+        Background.Plan -> planColors(scheme)
+        is Background.Photo -> photoColors(scheme)
+    }
+    val grid = when (background) {
+        Background.Plan -> GRID_MM
+        is Background.Photo -> null
+    }
 
     Canvas(
         modifier
             .clip(RoundedCornerShape(28.dp))
-            .background(scheme.surfaceContainerLow)
+            .background(if (grid != null) scheme.surfaceContainerLow else Color.Black)
             .onSizeChanged { canvasSize = it }
             .pointerInput(Unit) {
                 // When and where the last tap lifted, so a second tap soon after nearby makes a double tap.
@@ -498,14 +539,14 @@ internal fun SketchCanvas(
                         down.uptimeMillis - at <= viewConfiguration.doubleTapTimeoutMillis && (down.position - p).getDistance() <= tapReach
                     } == true
                     lastTap = null
-                    fun mmPerPx() = GRID_MM / (spacing * scale)
-                    fun world(p: Offset) = Offset(p.x - originX, p.y - originY) * mmPerPx()
-                    fun step() = GRID_MM * dotStep(spacing * scale, minDotGap)
+                    fun unitsPerPx() = 1 / pxPerUnit
+                    fun world(p: Offset) = Offset(p.x - originX, p.y - originY) * unitsPerPx()
+                    fun step() = grid?.let { it * dotStep(it * pxPerUnit, minDotGap) }
                     fun snap(p: Offset, from: Pt? = null) =
-                        world(p).let { current.snap(it.x, it.y, snapReach * mmPerPx(), alignReach * mmPerPx(), step(), from) }
+                        world(p).let { current.snap(it.x, it.y, snapReach * unitsPerPx(), alignReach * unitsPerPx(), step(), from) }
                     // Lining a rectangle's far corner up with its first would flatten it.
                     fun drawFrom(start: Pt) = start.takeIf { currentTool == SketchTool.LINE }
-                    fun sideAtDown() = world(down.position).let { current.sideAt(it.x, it.y, tapReach * mmPerPx()) }
+                    fun sideAtDown() = world(down.position).let { current.sideAt(it.x, it.y, tapReach * unitsPerPx()) }
 
                     var state: Touch = Touch.Pending
                     // Past the long-press wait, or a double tap, which never picks a shape up.
@@ -520,7 +561,7 @@ internal fun SketchCanvas(
                         }
                         if (event == null) {
                             held = true
-                            world(down.position).let { current.shapeAt(it.x, it.y, tapReach * mmPerPx()) }?.let {
+                            world(down.position).let { current.shapeAt(it.x, it.y, tapReach * unitsPerPx()) }?.let {
                                 state = Touch.Carrying(it)
                                 gesture = state
                                 pickUp()
@@ -538,11 +579,12 @@ internal fun SketchCanvas(
                             if (event.changes.all { it.pressed == it.previousPressed }) {
                                 val centroid = event.calculateCentroid()
                                 val pan = event.calculatePan()
-                                val next = (scale * event.calculateZoom()).coerceIn(MIN_SCALE, MAX_SCALE)
-                                val k = next / scale
+                                val next = (pxPerUnit * event.calculateZoom()).coerceIn(zoomRange())
+                                val k = next / pxPerUnit
                                 originX = centroid.x - (centroid.x - pan.x - originX) * k
                                 originY = centroid.y - (centroid.y - pan.y - originY) * k
-                                scale = next
+                                pxPerUnit = next
+                                keepOnPhoto()
                             }
                             event.changes.forEach { it.consume() }
                             continue
@@ -562,8 +604,8 @@ internal fun SketchCanvas(
                                 if (!moved && !now.moved) {
                                     now
                                 } else {
-                                    val drag = (change.position - down.position) * mmPerPx()
-                                    now.copy(shift = current.dropShift(now.id, drag.x, drag.y, snapReach * mmPerPx(), step()), moved = true)
+                                    val drag = (change.position - down.position) * unitsPerPx()
+                                    now.copy(shift = current.dropShift(now.id, drag.x, drag.y, snapReach * unitsPerPx(), step()), moved = true)
                                 }
                             Touch.Viewing -> now
                         }
@@ -590,88 +632,42 @@ internal fun SketchCanvas(
                 }
             },
     ) {
-        val pxPerMm = spacing * scale / GRID_MM
-        fun at(p: Pt) = Offset(originX + p.x * pxPerMm, originY + p.y * pxPerMm)
-
-        val unit = spacing * scale * dotStep(spacing * scale, minDotGap)
-        val columns = ceil(-originX / unit).toInt()..floor((size.width - originX) / unit).toInt()
-        val rows = ceil(-originY / unit).toInt()..floor((size.height - originY) / unit).toInt()
-        val dots = buildList {
-            for (x in columns) for (y in rows) add(Offset(originX + x * unit, originY + y * unit))
-        }
-        drawPoints(dots, PointMode.Points, scheme.outlineVariant, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
-
-        val target = current.target
-        val carried = gesture as? Touch.Carrying
-        val shapes = current.shapes.map { s -> if (s.id == carried?.id) s.mapPoints { it + carried.shift } else s }
-        val dash = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))
-        // The selected side and a shape being carried go last so they stay on top where shapes share an edge.
-        shapes
-            .flatMap { s ->
-                s.edges.map { e -> Triple(e, SideRef(s.id, e.side) == target || s.id == carried?.id, s.sides[e.side] != null) }
+        val view = SketchView(originX, originY, pxPerUnit)
+        when (background) {
+            Background.Plan -> {
+                val unit = GRID_MM * pxPerUnit * dotStep(GRID_MM * pxPerUnit, minDotGap)
+                val columns = ceil(-originX / unit).toInt()..floor((size.width - originX) / unit).toInt()
+                val rows = ceil(-originY / unit).toInt()..floor((size.height - originY) / unit).toInt()
+                val dots = buildList {
+                    for (x in columns) for (y in rows) add(Offset(originX + x * unit, originY + y * unit))
+                }
+                drawPoints(dots, PointMode.Points, scheme.outlineVariant, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
             }
-            .sortedBy { it.second }
-            .forEach { (e, raised, measured) ->
-                drawLine(
-                    color = if (raised) scheme.primary else scheme.onSurface,
-                    start = at(e.a),
-                    end = at(e.b),
-                    strokeWidth = (if (raised) 5.dp else 3.dp).toPx(),
-                    cap = StrokeCap.Round,
-                    pathEffect = if (measured) null else dash,
+            is Background.Photo -> photo?.let {
+                drawImage(
+                    it,
+                    dstOffset = IntOffset(originX.roundToInt(), originY.roundToInt()),
+                    dstSize = IntSize((background.width * pxPerUnit).roundToInt(), (background.height * pxPerUnit).roundToInt()),
+                    filterQuality = FilterQuality.Medium,
                 )
             }
+        }
+
+        val carried = gesture as? Touch.Carrying
+        val shapes = current.shapes.map { s -> if (s.id == carried?.id) s.mapPoints { it + carried.shift } else s }
+        drawShapes(shapes, view, colors, labels, target = current.target, carried = carried?.id)
+
         (gesture as? Touch.Drawing)?.let { (a, end) ->
             val guide = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
             end.guides.forEach { g ->
-                val p = at(g.through)
+                val p = view.at(g.through)
                 val (from, to) = if (g.vertical) Offset(p.x, 0f) to Offset(p.x, size.height) else Offset(0f, p.y) to Offset(size.width, p.y)
-                drawLine(scheme.primary.copy(alpha = 0.4f), from, to, 1.dp.toPx(), pathEffect = guide)
+                drawLine(colors.raised.copy(alpha = 0.5f), from, to, 1.dp.toPx(), pathEffect = guide)
             }
             val b = end.at
             val shape: SketchShape = if (tool == SketchTool.LINE) Segment(0, a, b) else Rect(0, a, b)
             shape.edges.forEach {
-                drawLine(scheme.primary.copy(alpha = 0.6f), at(it.a), at(it.b), 3.dp.toPx(), StrokeCap.Round)
-            }
-        }
-
-        fun label(text: String, center: Offset, degrees: Float, background: Color, color: Color) {
-            pill(measurer.measure(text, labelStyle.copy(color = color)), center, degrees, background)
-        }
-        shapes.forEach { s ->
-            s.sides.forEachIndexed { side, mm ->
-                val e = s.edges.first { it.side == side }
-                val a = at(e.a)
-                val b = at(e.b)
-                val selected = SideRef(s.id, side) == target
-                val text = mm?.let { formatter.length(it).toString() } ?: "?"
-                val color = if (selected) scheme.onPrimary else scheme.onSurface
-                // Shrinks the text to fit a short side, and moves it off the side if even the smallest won't fit.
-                val room = (b - a).getDistance()
-                var style = labelStyle.copy(color = color)
-                var layout = measurer.measure(text, style)
-                while (pillWidth(layout) > room && style.fontSize > MinLabelSize) {
-                    style = style.copy(fontSize = maxOf(style.fontSize.value - 1f, MinLabelSize.value).sp)
-                    layout = measurer.measure(text, style)
-                }
-                pill(
-                    text = layout,
-                    center = (a + b) / 2f,
-                    degrees = upright(Math.toDegrees(atan2(b.y - a.y, b.x - a.x).toDouble()).toFloat()),
-                    background = if (selected) scheme.primary else scheme.surfaceContainerHigh,
-                    beside = pillWidth(layout) > room,
-                )
-            }
-            if (s is Rect) {
-                s.area?.let { area ->
-                    label(
-                        formatter.area(area).toString(),
-                        (at(s.a) + at(s.b)) / 2f,
-                        0f,
-                        scheme.secondaryContainer,
-                        scheme.onSecondaryContainer,
-                    )
-                }
+                drawLine(colors.raised.copy(alpha = 0.7f), view.at(it.a), view.at(it.b), 3.dp.toPx(), StrokeCap.Round)
             }
         }
     }
@@ -679,29 +675,3 @@ internal fun SketchCanvas(
 
 /** How many dot spacings apart to show dots [dotPx] apart at full density, so they stay at least [minGap] apart. */
 private fun dotStep(dotPx: Float, minGap: Float) = DotSteps.firstOrNull { dotPx * it >= minGap } ?: DotSteps.last()
-
-/** Turns a line's angle so text along it never reads upside down; vertical text reads bottom to top. */
-private fun upright(degrees: Float) = when {
-    degrees >= 90f -> degrees - 180f
-    degrees < -90f -> degrees + 180f
-    else -> degrees
-}
-
-/** Side labels shrink no smaller than this to fit a short side. */
-private val MinLabelSize = 9.sp
-
-private fun DrawScope.pillWidth(text: TextLayoutResult) = text.size.width + 12.dp.toPx()
-
-/**
- * [text] on a rounded pill centred on [center] and turned [degrees]; [beside] lifts it clear of the line under it,
- * which is outward for a rectangle's top and left sides.
- */
-private fun DrawScope.pill(text: TextLayoutResult, center: Offset, degrees: Float, background: Color, beside: Boolean = false) {
-    val w = pillWidth(text)
-    val h = text.size.height + 4.dp.toPx()
-    val c = if (beside) center - Offset(0f, h / 2 + 5.dp.toPx()) else center
-    rotate(degrees, pivot = center) {
-        drawRoundRect(background, Offset(c.x - w / 2, c.y - h / 2), Size(w, h), CornerRadius(h / 2))
-        drawText(text, topLeft = Offset(c.x - text.size.width / 2f, c.y - text.size.height / 2f))
-    }
-}

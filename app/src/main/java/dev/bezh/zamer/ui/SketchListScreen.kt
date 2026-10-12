@@ -2,6 +2,7 @@ package dev.bezh.zamer.ui
 
 import android.content.Context
 import android.text.format.DateUtils
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -157,7 +158,7 @@ private fun NewSketchTile(
 }
 
 @Composable
-private fun SketchCard(
+internal fun SketchCard(
     doc: SketchDoc,
     formatter: Formatter,
     onOpen: () -> Unit,
@@ -169,12 +170,7 @@ private fun SketchCard(
     Surface(onClick = onOpen, shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(88.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Rounded.Draw, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                SketchThumbnail(doc, Modifier.size(88.dp))
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(doc.title(context), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -196,6 +192,23 @@ private fun SketchCard(
                     },
                     modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
                 )
+            }
+        }
+    }
+}
+
+/** The sketch's lines fitted into a small tile, without labels. */
+@Composable
+private fun SketchThumbnail(doc: SketchDoc, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Box(modifier.clip(RoundedCornerShape(20.dp)).background(scheme.surfaceContainerLow), contentAlignment = Alignment.Center) {
+        val points = doc.sketch.shapes.flatMap { it.points }
+        if (points.isEmpty()) {
+            Icon(Icons.Rounded.Draw, contentDescription = null, tint = scheme.onSurfaceVariant)
+        } else {
+            Canvas(Modifier.fillMaxSize()) {
+                val view = fitView(points, size.width, size.height, 12.dp.toPx()) ?: return@Canvas
+                drawShapes(doc.sketch.shapes, view, planColors(scheme), labels = null, stroke = 1.5.dp.toPx())
             }
         }
     }

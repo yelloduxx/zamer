@@ -139,9 +139,14 @@ class RangefinderRepository(
                 _state.value = LinkState.Connected
                 failures = 0
                 for (frame in link.sessionFrames) {
-                    val report = keys.decrypt(frame) as? DeviceFrame.Report ?: continue
-                    current.send(report.ack)
-                    onReport(report)
+                    when (val decrypted = keys.decrypt(frame)) {
+                        is DeviceFrame.Report -> {
+                            current.send(decrypted.ack)
+                            onReport(decrypted)
+                        }
+                        is DeviceFrame.MultiFrameReport -> current.send(decrypted.ack)
+                        is DeviceFrame.Other, null -> Unit
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

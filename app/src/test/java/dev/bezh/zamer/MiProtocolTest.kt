@@ -80,6 +80,13 @@ class MiProtocolTest {
     }
 
     @Test
+    fun multiFrameReportIsAcknowledgedButNotParsed() {
+        val frame = DeviceFrame.parse("02100580040005b7".hexToBytes())
+        assertTrue(frame is DeviceFrame.MultiFrameReport)
+        assertEquals("1210", (frame as DeviceFrame.MultiFrameReport).ack.toHex())
+    }
+
+    @Test
     fun encryptsCommandsWithTheAppKey() {
         val command = DeviceAttr.set(msgId = 3, id = DeviceAttr.UNIT_ID, value = 1)
         assertEquals("03000401020201", command.toHex())

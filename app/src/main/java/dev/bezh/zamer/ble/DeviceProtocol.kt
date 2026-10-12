@@ -7,6 +7,8 @@ sealed interface DeviceFrame {
         fun valueOf(type: Int, id: Int): Long? = attributes.firstOrNull { it.type == type && it.id == id }?.value
     }
 
+    data class MultiFrameReport(val ack: ByteArray) : DeviceFrame
+
     data class Other(val raw: ByteArray) : DeviceFrame
 
     companion object {
@@ -17,7 +19,7 @@ sealed interface DeviceFrame {
             if (fromApp || u(3) != METHOD_REPORT) return Other(p)
             val ack = byteArrayOf((u(0) or 0x10).toByte(), p[1])
             val single = u(1) shr 4 == 0
-            return Report(if (single) attributes(p, 4) else emptyList(), ack)
+            return if (single) Report(attributes(p, 4), ack) else MultiFrameReport(ack)
         }
 
         private fun attributes(p: ByteArray, start: Int): List<Attribute> {

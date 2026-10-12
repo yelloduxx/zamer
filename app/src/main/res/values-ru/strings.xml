@@ -48,6 +48,12 @@
     <string name="sketch_fit">Показать всё</string>
     <string name="sketch_clear_confirm">Стереть весь эскиз?</string>
     <string name="action_back">Назад</string>
+    <string name="sketches_title">Эскизы</string>
+    <string name="sketches_empty">Здесь появятся ваши эскизы</string>
+    <string name="sketch_new_plan">Новый план</string>
+    <string name="sketch_more">Ещё</string>
+    <string name="sketch_delete_confirm">Удалить этот эскиз?</string>
+    <string name="action_rename">Переименовать</string>
 
     <string name="action_undo">Отменить</string>
     <string name="action_reset">Заново</string>

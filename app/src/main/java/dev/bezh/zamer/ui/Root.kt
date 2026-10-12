@@ -82,18 +82,30 @@ fun ZamerRoot(container: AppContainer) {
 @Composable
 private fun MainScaffold(container: AppContainer, factory: ViewModelFactory, onRepair: () -> Unit) {
     var tab by rememberSaveable { mutableStateOf(Tab.Measure) }
-    var sketchOpen by rememberSaveable { mutableStateOf(false) }
+    var sketchList by rememberSaveable { mutableStateOf(false) }
+    var openSketch by rememberSaveable { mutableStateOf<Long?>(null) }
     val measureVm: MeasureViewModel = viewModel(factory = factory)
     val requestPermission = rememberPermissionRequest()
     val enableBluetooth = rememberEnableBluetooth()
 
-    if (sketchOpen) {
-        BackHandler { sketchOpen = false }
-        DisposableEffect(Unit) {
+    val sketchVm: SketchViewModel = viewModel(factory = factory)
+    val open = openSketch
+    if (open != null) {
+        BackHandler { openSketch = null }
+        DisposableEffect(open) {
+            sketchVm.open(open)
             container.readingTarget.value = ReadingTarget.SKETCH
-            onDispose { container.readingTarget.value = ReadingTarget.MEASURE }
+            onDispose {
+                sketchVm.open(null)
+                container.readingTarget.value = ReadingTarget.MEASURE
+            }
         }
-        SketchScreen(viewModel(factory = factory), onBack = { sketchOpen = false }, onRepair, requestPermission, enableBluetooth)
+        SketchScreen(sketchVm, onBack = { openSketch = null }, onRepair, requestPermission, enableBluetooth)
+        return
+    }
+    if (sketchList) {
+        BackHandler { sketchList = false }
+        SketchListScreen(sketchVm, onBack = { sketchList = false }, onOpen = { openSketch = it })
         return
     }
 
@@ -122,7 +134,7 @@ private fun MainScaffold(container: AppContainer, factory: ViewModelFactory, onR
         },
     ) { padding ->
         when (tab) {
-            Tab.Measure -> MeasureScreen(measureVm, padding, onRepair, requestPermission, enableBluetooth, onOpenSketch = { sketchOpen = true })
+            Tab.Measure -> MeasureScreen(measureVm, padding, onRepair, requestPermission, enableBluetooth, onOpenSketch = { sketchList = true })
             Tab.History -> HistoryScreen(container, padding)
             Tab.Settings -> SettingsScreen(container, padding, onRepair)
         }

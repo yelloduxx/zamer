@@ -1,6 +1,7 @@
 package dev.bezh.zamer.data
 
 import android.content.Context
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -13,6 +14,7 @@ import dev.bezh.zamer.domain.MeasureMode
 import dev.bezh.zamer.domain.Pt
 import dev.bezh.zamer.domain.Reading
 import dev.bezh.zamer.domain.Sketch
+import dev.bezh.zamer.domain.SketchDoc
 import dev.bezh.zamer.domain.UnitSystem
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +24,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "zamer")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "zamer",
+    produceMigrations = { listOf(SketchListMigration) },
+)
 
 /** How stored JSON is read; unknown keys are tolerated so older app versions can read newer data. */
 internal val StoreJson = Json { ignoreUnknownKeys = true }
@@ -147,13 +152,28 @@ class AppStore(private val context: Context) {
 
     // ---- sketch ----
 
-    val sketch: Flow<Sketch> = store.data.map { decodeSketch(it[SKETCH], it[GRID_SKETCH]) }.distinctUntilChanged()
+    /** Every saved sketch, newest first. */
+    val sketches: Flow<List<SketchDoc>> = store.data.map { decodeList<SketchDoc>(it[SKETCHES]) }.distinctUntilChanged()
 
-    suspend fun updateSketch(transform: (Sketch) -> Sketch) {
+    suspend fun addSketch(doc: SketchDoc) {
+        store.edit { p -> p[SKETCHES] = json.encodeToString(listOf(doc) + decodeList<SketchDoc>(p[SKETCHES])) }
+    }
+
+    suspend fun updateSketch(id: Long, transform: (SketchDoc) -> SketchDoc) {
         store.edit { p ->
-            p[SKETCH] = json.encodeToString(transform(decodeSketch(p[SKETCH], p[GRID_SKETCH])))
-            p.remove(GRID_SKETCH)
+            p[SKETCHES] = json.encodeToString(decodeList<SketchDoc>(p[SKETCHES]).map { if (it.id == id) transform(it) else it })
         }
+    }
+
+    /** Removes sketch [id] and gives it back, so whatever it kept elsewhere can go too. */
+    suspend fun deleteSketch(id: Long): SketchDoc? {
+        var gone: SketchDoc? = null
+        store.edit { p ->
+            val list = decodeList<SketchDoc>(p[SKETCHES])
+            gone = list.firstOrNull { it.id == id }
+            p[SKETCHES] = json.encodeToString(list.filterNot { it.id == id })
+        }
+        return gone
     }
 
     private fun decodeHistory(raw: String?): List<HistoryEntry> = decodeList(raw)
@@ -178,9 +198,6 @@ class AppStore(private val context: Context) {
         store.edit { it.remove(READINGS) }
     }
 
-    private inline fun <reified T> decodeList(raw: String?): List<T> =
-        raw?.let { runCatching { json.decodeFromString<List<T>>(it) }.getOrNull() } ?: emptyList()
-
     private companion object {
         const val MAX_HISTORY = 500
         const val MAX_READINGS = 200
@@ -196,11 +213,40 @@ class AppStore(private val context: Context) {
         val HISTORY = stringPreferencesKey("history_json")
         val WORKSPACE = stringPreferencesKey("workspace_json")
         val READINGS = stringPreferencesKey("readings_json")
-        val SKETCH = stringPreferencesKey("sketch_mm_json")
-
-        /** A sketch saved before coordinates were millimetres, in units of one dot spacing. */
-        val GRID_SKETCH = stringPreferencesKey("sketch_json")
     }
+}
+
+internal val SKETCHES = stringPreferencesKey("sketches_json")
+
+/** The one sketch kept before there were several, in millimetres. */
+internal val SKETCH = stringPreferencesKey("sketch_mm_json")
+
+/** The one sketch kept before coordinates were millimetres, in units of one dot spacing. */
+private val GRID_SKETCH = stringPreferencesKey("sketch_json")
+
+private inline fun <reified T> decodeList(raw: String?): List<T> =
+    raw?.let { runCatching { StoreJson.decodeFromString<List<T>>(it) }.getOrNull() } ?: emptyList()
+
+/** Moves the single sketch kept by earlier versions into the list, before anything reads the store. */
+internal object SketchListMigration : DataMigration<Preferences> {
+    override suspend fun shouldMigrate(currentData: Preferences) = SKETCH in currentData || GRID_SKETCH in currentData
+
+    override suspend fun migrate(currentData: Preferences): Preferences {
+        val p = currentData.toMutablePreferences()
+        val old = migratedSketches(p[SKETCH], p[GRID_SKETCH], System.currentTimeMillis())
+        p[SKETCHES] = StoreJson.encodeToString(decodeList<SketchDoc>(p[SKETCHES]) + old)
+        p.remove(SKETCH)
+        p.remove(GRID_SKETCH)
+        return p.toPreferences()
+    }
+
+    override suspend fun cleanUp() = Unit
+}
+
+/** The sketch an earlier version kept as [mm] or [grid], as a list of one made [now]; empty if there was nothing drawn. */
+internal fun migratedSketches(mm: String?, grid: String?, now: Long): List<SketchDoc> {
+    val old = decodeSketch(mm, grid)
+    return if (old.shapes.isEmpty()) emptyList() else listOf(SketchDoc(id = now, created = now, sketch = old))
 }
 
 /** The stored sketch from [mm], or else from [grid], an older one counted in dot spacings, scaled to millimetres. */

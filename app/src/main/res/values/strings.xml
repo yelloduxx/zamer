@@ -48,6 +48,12 @@
     <string name="sketch_fit">Show everything</string>
     <string name="sketch_clear_confirm">Erase the whole sketch?</string>
     <string name="action_back">Back</string>
+    <string name="sketches_title">Sketches</string>
+    <string name="sketches_empty">Your sketches will appear here</string>
+    <string name="sketch_new_plan">New plan</string>
+    <string name="sketch_more">More</string>
+    <string name="sketch_delete_confirm">Delete this sketch?</string>
+    <string name="action_rename">Rename</string>
 
     <string name="action_undo">Undo</string>
     <string name="action_reset">Start over</string>

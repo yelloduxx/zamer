@@ -37,6 +37,9 @@ sealed interface SketchShape {
 
     /** The shape with side [side] measured as [mm] and redrawn that long, its first point staying where it is. */
     fun measured(side: Int, mm: Int): SketchShape
+
+    /** The shape with side [side] labelled [mm], drawn as it was. */
+    fun labelled(side: Int, mm: Int): SketchShape
 }
 
 @Serializable
@@ -46,6 +49,7 @@ data class Segment(override val id: Long, val a: Pt, val b: Pt, val mm: Int? = n
     override val edges get() = listOf(Edge(a, b, 0))
     override val points get() = listOf(a, b)
     override fun mapPoints(f: (Pt) -> Pt) = copy(a = f(a), b = f(b))
+    override fun labelled(side: Int, mm: Int) = copy(mm = mm)
 
     /** Moves [b] along the line, so the direction stays. */
     override fun measured(side: Int, mm: Int): Segment {
@@ -94,6 +98,8 @@ data class Rect(
     val area: Double?
         get() = if (widthMm != null && heightMm != null) widthMm / 1000.0 * (heightMm / 1000.0) else null
 
+    override fun labelled(side: Int, mm: Int) = if (side == 0) copy(widthMm = mm) else copy(heightMm = mm)
+
     /** Moves [b] away from or towards [a], on the same side of it. */
     override fun measured(side: Int, mm: Int) =
         if (side == 0) copy(b = Pt(a.x + mm * (b.x - a.x).sign, b.y), widthMm = mm)
@@ -133,13 +139,13 @@ data class Sketch(
         else changed(shapes + shape, SideRef(shape.id, 0))
 
     /**
-     * Measures the target with [mm] and redraws it that long, with the shapes joined to it following; then waits for
-     * the same shape's next unmeasured side, if any.
+     * Measures the target with [mm] and, [toScale], redraws it that long with the shapes joined to it following; then
+     * waits for the same shape's next unmeasured side, if any.
      */
-    fun put(mm: Int): Sketch {
+    fun put(mm: Int, toScale: Boolean = true): Sketch {
         val t = target ?: return this
         val before = shapes.first { it.id == t.shapeId }
-        val shape = before.measured(t.side, mm)
+        val shape = if (toScale) before.measured(t.side, mm) else before.labelled(t.side, mm)
         val next = shape.sides.indexOfFirst { it == null }.takeIf { it >= 0 }?.let { SideRef(shape.id, it) }
         return changed(follow(before, shape), next)
     }
@@ -217,9 +223,10 @@ data class Sketch(
 
     /**
      * The shift that drops shape [id], dragged by ([dx], [dy]) mm, with one of its points on another shape's end or
-     * corner within [reach] mm, so the two join; or else on the nearest dot of a grid [step] mm apart.
+     * corner within [reach] mm, so the two join; or else on the nearest dot of a grid [step] mm apart, or just where
+     * the finger left it with no grid.
      */
-    fun dropShift(id: Long, dx: Float, dy: Float, reach: Float, step: Int = GRID_MM): Pt {
+    fun dropShift(id: Long, dx: Float, dy: Float, reach: Float, step: Int? = GRID_MM): Pt {
         val moved = shapes.firstOrNull { it.id == id } ?: return Pt(0, 0)
         val others = shapes.filter { it.id != id }.flatMap { it.points }
         fun gap(from: Pt, to: Pt) = hypot(to.x - (from.x + dx), to.y - (from.y + dy))
@@ -227,9 +234,12 @@ data class Sketch(
             .flatMap { p -> others.map { p to it } }
             .filter { (p, q) -> gap(p, q) <= reach }
             .minByOrNull { (p, q) -> gap(p, q) }
-        val (from, to) = join ?: moved.points
-            .map { p -> p to Pt(((p.x + dx) / step).roundToInt() * step, ((p.y + dy) / step).roundToInt() * step) }
-            .minBy { (p, q) -> gap(p, q) }
+        val (from, to) = join ?: run {
+            val s = step ?: return Pt(dx.roundToInt(), dy.roundToInt())
+            moved.points
+                .map { p -> p to Pt(((p.x + dx) / s).roundToInt() * s, ((p.y + dy) / s).roundToInt() * s) }
+                .minBy { (p, q) -> gap(p, q) }
+        }
         return to - from
     }
 

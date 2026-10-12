@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -92,6 +93,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -145,10 +147,12 @@ fun SketchScreen(
     LaunchedEffect(ui.assignedCount) {
         if (ui.assignedCount > countOnEntry && ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
     }
+    // A sketch just started is stored a moment after it is opened.
+    val doc = ui.open ?: return
     var tool by rememberSaveable { mutableStateOf(SketchTool.LINE) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     var fits by remember { mutableIntStateOf(0) }
-    val sketch = ui.sketch ?: Sketch()
+    val sketch = doc.sketch
     // The side whose length is being typed; it is also the target, so the typed value goes where a reading would.
     var editing by remember { mutableStateOf<SideRef?>(null) }
     LaunchedEffect(sketch.target) { if (sketch.target != editing) editing = null }
@@ -170,8 +174,10 @@ fun SketchScreen(
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
             }
             Text(
-                stringResource(R.string.sketch_title),
+                doc.title(LocalContext.current),
                 style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
             IconButton(onClick = { fits++ }, enabled = sketch.shapes.isNotEmpty()) {
@@ -186,22 +192,25 @@ fun SketchScreen(
             )
         }
         Box(inset.weight(1f).fillMaxWidth()) {
-        SketchCanvas(
-            sketch = sketch,
-            tool = tool,
-            formatter = formatter,
-            fits = fits,
-            onDraw = { a, b -> vm.draw(tool, a, b) },
-            onSelect = vm::select,
-            onEdit = {
-                vm.select(it)
-                editing = it
-            },
-            onMove = vm::move,
-            onPickUp = { if (ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
-            onTouch = { editing = null },
-            modifier = Modifier.fillMaxSize(),
-        )
+            // A view panned and zoomed for one sketch means nothing for another.
+            key(doc.id) {
+                SketchCanvas(
+                    sketch = sketch,
+                    tool = tool,
+                    formatter = formatter,
+                    fits = fits,
+                    onDraw = { a, b -> vm.draw(tool, a, b) },
+                    onSelect = vm::select,
+                    onEdit = {
+                        vm.select(it)
+                        editing = it
+                    },
+                    onMove = vm::move,
+                    onPickUp = { if (ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
+                    onTouch = { editing = null },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             sketch.totalArea?.let {
                 AreaBadge(
                     stringResource(R.string.sketch_total_area, formatter.area(it).toString()),
@@ -401,7 +410,7 @@ private sealed interface Touch {
  * [fits] frames the whole sketch.
  */
 @Composable
-private fun SketchCanvas(
+internal fun SketchCanvas(
     sketch: Sketch,
     tool: SketchTool,
     formatter: Formatter,

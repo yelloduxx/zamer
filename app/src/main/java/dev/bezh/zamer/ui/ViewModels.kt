@@ -17,6 +17,7 @@ import dev.bezh.zamer.domain.Rect
 import dev.bezh.zamer.domain.Segment
 import dev.bezh.zamer.domain.SideRef
 import dev.bezh.zamer.domain.Sketch
+import dev.bezh.zamer.domain.SketchDoc
 import dev.bezh.zamer.domain.Workspace
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -126,34 +127,62 @@ private const val RECENT_CHIPS = 10
 enum class SketchTool { LINE, RECT }
 
 data class SketchUiState(
-    /** Null until the stored sketch has been read. */
-    val sketch: Sketch? = null,
+    /** Null until the stored sketches have been read; newest first. */
+    val sketches: List<SketchDoc>? = null,
+    val openId: Long? = null,
     /** Increments with every device reading that measured a side, so the UI can buzz. */
     val assignedCount: Int = 0,
     val link: LinkState = LinkState.Searching,
     val settings: Settings = Settings(),
     val recent: List<Int> = emptyList(),
-)
+) {
+    /** The sketch being drawn, once it has been read. */
+    val open: SketchDoc? get() = sketches?.firstOrNull { it.id == openId }
+}
 
+/** The list of sketches and the one open in the sketch screen, which device readings measure. */
 class SketchViewModel(private val c: AppContainer) : ViewModel() {
     private val assigned = MutableStateFlow(0)
+    private val openId = MutableStateFlow<Long?>(null)
 
     val ui: StateFlow<SketchUiState> =
-        combine(c.store.sketch, assigned, c.repository.state, c.store.settings, c.store.readings) { sketch, n, link, settings, log ->
-            SketchUiState(sketch, n, link, settings, log.recentValues())
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SketchUiState())
+        combine(c.store.sketches, openId, assigned, c.repository.state, c.store.settings) { sketches, open, n, link, settings ->
+            SketchUiState(sketches, open, n, link, settings)
+        }.combine(c.store.readings) { ui, log -> ui.copy(recent = log.recentValues()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SketchUiState())
 
     init {
         viewModelScope.launch { c.readings(ReadingTarget.SKETCH).collect { put(it.mm, fromDevice = true) } }
     }
 
+    /** Opens sketch [id] for drawing and measuring, or with null leaves it. */
+    fun open(id: Long?) {
+        openId.value = id
+    }
+
+    /** Starts an empty floor plan and gives its id. */
+    fun newPlan(): Long {
+        val now = System.currentTimeMillis()
+        viewModelScope.launch { c.store.addSketch(SketchDoc(id = now, created = now)) }
+        return now
+    }
+
+    fun rename(id: Long, title: String) {
+        viewModelScope.launch { c.store.updateSketch(id) { it.renamed(title) } }
+    }
+
+    fun delete(id: Long) {
+        viewModelScope.launch { c.store.deleteSketch(id) }
+    }
+
     /** Measures the selected side with [mm]; [fromDevice] readings also buzz. */
     fun put(mm: Int, fromDevice: Boolean = false) {
+        val id = openId.value ?: return
         viewModelScope.launch {
             var measured = false
-            c.store.updateSketch { s ->
-                measured = s.target != null
-                s.put(mm)
+            c.store.updateSketch(id) { doc ->
+                measured = doc.sketch.target != null
+                doc.put(mm)
             }
             if (measured && fromDevice) assigned.update { it + 1 }
         }
@@ -176,7 +205,8 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
     fun clear() = edit { it.clear() }
 
     private fun edit(transform: (Sketch) -> Sketch) {
-        viewModelScope.launch { c.store.updateSketch(transform) }
+        val id = openId.value ?: return
+        viewModelScope.launch { c.store.updateSketch(id) { it.copy(sketch = transform(it.sketch)) } }
     }
 }
 

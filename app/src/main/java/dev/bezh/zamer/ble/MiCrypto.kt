@@ -87,8 +87,8 @@ object MiCrypto {
 
     private fun counterBlock(nonce: ByteArray, i: Int): ByteArray {
         val b = ByteArray(16)
-        b[0] = 2
-        nonce.copyInto(b, 1, 0, 12)
+        b[0] = CCM_LENGTH_FLAGS.toByte()
+        nonce.copyInto(b, 1, 0, CCM_NONCE_SIZE)
         b[13] = (i shr 16).toByte(); b[14] = (i shr 8).toByte(); b[15] = i.toByte()
         return b
     }
@@ -108,8 +108,8 @@ object MiCrypto {
 
     private fun cbcMac(aes: Cipher, nonce: ByteArray, msg: ByteArray, aad: ByteArray, tagLen: Int): ByteArray {
         val b0 = ByteArray(16)
-        b0[0] = ((if (aad.isNotEmpty()) 0x40 else 0) or (((tagLen - 2) / 2) shl 3) or 2).toByte()
-        nonce.copyInto(b0, 1, 0, 12)
+        b0[0] = ((if (aad.isNotEmpty()) CCM_ADATA_FLAG else 0) or ccmTagFlags(tagLen) or CCM_LENGTH_FLAGS).toByte()
+        nonce.copyInto(b0, 1, 0, CCM_NONCE_SIZE)
         b0[13] = (msg.size shr 16).toByte(); b0[14] = (msg.size shr 8).toByte(); b0[15] = msg.size.toByte()
 
         val blocks = ArrayList<ByteArray>()
@@ -129,6 +129,17 @@ object MiCrypto {
         }
         return x.copyOf(tagLen)
     }
+
+    private const val CCM_NONCE_SIZE = 12
+
+    /** RFC 3610 L: the bytes left for the length or counter after the flags byte and the nonce. */
+    private const val CCM_LENGTH_SIZE = 16 - 1 - CCM_NONCE_SIZE
+
+    /** RFC 3610 flags: L' = L - 1 in bits 0..2, M' = (M - 2) / 2 in bits 3..5, Adata in bit 6. */
+    private const val CCM_LENGTH_FLAGS = CCM_LENGTH_SIZE - 1
+    private const val CCM_ADATA_FLAG = 0x40
+
+    private fun ccmTagFlags(tagLen: Int) = (tagLen - 2) / 2 shl 3
 
     private fun padTo16(data: ByteArray): ByteArray = data.copyOf((data.size + 15) / 16 * 16)
 

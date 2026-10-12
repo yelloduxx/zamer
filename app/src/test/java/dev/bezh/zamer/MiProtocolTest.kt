@@ -21,30 +21,65 @@ import java.security.SecureRandom
 
 class MiProtocolTest {
 
-    private val ccmVectors = listOf(
-        "0104070a0d101316191c1f2225282b2e 020d18232e39444f5a65707b - - 137734f5",
-        "1215181b1e2124272a2d303336393c3f 07121d28333e49545f6a7580 - 0a1724313e4b58 b38ee3f85165fd170b9394",
-        "2326292c2f3235383b3e4144474a4d50 0c17222d38434e59646f7a85 092643607d 111e2b3845525f6c798693a0adbac7d4e1eefb0815222f3c 5e60705aa6859f4777f8ea4dc91bb29fdeb5922db668e2a3afa7e3f7",
-        "34373a3d404346494c4f5255585b5e61 111c27323d48535e69747f8a - 1825323f4c596673808d9aa7b4c1cedbe8f5020f 02202da58d75c4ad29f634aab1e8276d9a7b94ab1a20db19",
-        "45484b4e5154575a5d606366696c6f72 16212c37424d58636e79848f 092643607d9ab7 1f2c394653606d7a8794a1aebbc8d5e2effc091623303d4a5764717e8b98a5b2bf 5c9939a5fb3de42077ccd380563b1d3c32fecdc54292c89d6aadad0772c32e2d602b1d092a",
+    private class PycaCcmVector(key: String, nonce: String, aad: String, plaintext: String, ciphertext: String) {
+        val key = key.hexToBytes()
+        val nonce = nonce.hexToBytes()
+        val aad = aad.hexToBytes()
+        val plaintext = plaintext.hexToBytes()
+        val ciphertext = ciphertext.hexToBytes()
+    }
+
+    private val pycaCcmVectors = listOf(
+        PycaCcmVector(
+            key = "0104070a0d101316191c1f2225282b2e",
+            nonce = "020d18232e39444f5a65707b",
+            aad = "",
+            plaintext = "",
+            ciphertext = "137734f5",
+        ),
+        PycaCcmVector(
+            key = "1215181b1e2124272a2d303336393c3f",
+            nonce = "07121d28333e49545f6a7580",
+            aad = "",
+            plaintext = "0a1724313e4b58",
+            ciphertext = "b38ee3f85165fd170b9394",
+        ),
+        PycaCcmVector(
+            key = "2326292c2f3235383b3e4144474a4d50",
+            nonce = "0c17222d38434e59646f7a85",
+            aad = "092643607d",
+            plaintext = "111e2b3845525f6c798693a0adbac7d4e1eefb0815222f3c",
+            ciphertext = "5e60705aa6859f4777f8ea4dc91bb29fdeb5922db668e2a3afa7e3f7",
+        ),
+        PycaCcmVector(
+            key = "34373a3d404346494c4f5255585b5e61",
+            nonce = "111c27323d48535e69747f8a",
+            aad = "",
+            plaintext = "1825323f4c596673808d9aa7b4c1cedbe8f5020f",
+            ciphertext = "02202da58d75c4ad29f634aab1e8276d9a7b94ab1a20db19",
+        ),
+        PycaCcmVector(
+            key = "45484b4e5154575a5d606366696c6f72",
+            nonce = "16212c37424d58636e79848f",
+            aad = "092643607d9ab7",
+            plaintext = "1f2c394653606d7a8794a1aebbc8d5e2effc091623303d4a5764717e8b98a5b2bf",
+            ciphertext = "5c9939a5fb3de42077ccd380563b1d3c32fecdc54292c89d6aadad0772c32e2d602b1d092a",
+        ),
     )
 
-    private fun hex(s: String) = if (s == "-") ByteArray(0) else s.hexToBytes()
-
     @Test
-    fun ccmMatchesReferenceImplementation() {
-        for (line in ccmVectors) {
-            val (key, nonce, aad, pt, ct) = line.split(" ").map(::hex)
-            assertEquals(ct.toHex(), MiCrypto.ccmEncrypt(key, nonce, pt, aad).toHex())
-            assertArrayEquals(pt, MiCrypto.ccmDecrypt(key, nonce, ct, aad))
+    fun ccmMatchesPycaCryptography() {
+        for (v in pycaCcmVectors) {
+            assertEquals(v.ciphertext.toHex(), MiCrypto.ccmEncrypt(v.key, v.nonce, v.plaintext, v.aad).toHex())
+            assertArrayEquals(v.plaintext, MiCrypto.ccmDecrypt(v.key, v.nonce, v.ciphertext, v.aad))
         }
     }
 
     @Test
     fun ccmRejectsTamperedData() {
-        val (key, nonce, aad, _, ct) = ccmVectors[2].split(" ").map(::hex)
-        val bad = ct.copyOf().also { it[3] = (it[3].toInt() xor 1).toByte() }
-        assertNull(MiCrypto.ccmDecrypt(key, nonce, bad, aad))
+        val v = pycaCcmVectors[2]
+        val bad = v.ciphertext.copyOf().also { it[3] = (it[3].toInt() xor 1).toByte() }
+        assertNull(MiCrypto.ccmDecrypt(v.key, v.nonce, bad, v.aad))
     }
 
     private val session = SessionKeys(

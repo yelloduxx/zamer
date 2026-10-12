@@ -48,8 +48,10 @@ data class MeasureResult private constructor(
 }
 
 data class Quantity(val number: String, val unit: String) {
-    override fun toString() = "$number\u00A0$unit"
+    override fun toString() = "$number$NO_BREAK_SPACE$unit"
 }
+
+private const val NO_BREAK_SPACE = '\u00A0'
 
 class Formatter(
     private val units: UnitSystem,

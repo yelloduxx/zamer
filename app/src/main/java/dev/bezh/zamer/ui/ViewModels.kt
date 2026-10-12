@@ -166,6 +166,8 @@ class SketchViewModel(private val c: AppContainer) : ViewModel() {
 
     fun select(ref: SideRef) = edit { it.select(ref) }
 
+    fun move(id: Long, d: Pt) = edit { it.move(id, d) }
+
     /** Deletes the shape whose side is selected. */
     fun deleteSelected() = edit { s -> s.target?.let { s.delete(it.shapeId) } ?: s }
 

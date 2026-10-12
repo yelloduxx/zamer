@@ -103,17 +103,27 @@ data class Rect(
 @Serializable
 data class SideRef(val shapeId: Long, val side: Int)
 
-/** Shapes drawn to scale; [target] is the side the next reading measures. */
+/** How many earlier states of the shapes [Sketch.undo] can step back through. */
+private const val UNDO_DEPTH = 30
+
+/**
+ * Shapes drawn to scale; [target] is the side the next reading measures. [past] holds the shapes as they were before
+ * each recent change, oldest first, so a draw, a reading, a move or a deletion can be undone.
+ */
 @Serializable
-data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideRef? = null) {
+data class Sketch(
+    val shapes: List<SketchShape> = emptyList(),
+    val target: SideRef? = null,
+    val past: List<List<SketchShape>> = emptyList(),
+) {
     init {
-        require(target == null || isSide(target)) { "the target is a side of a shape in the sketch" }
+        require(target == null || shapes.has(target)) { "the target is a side of a shape in the sketch" }
     }
 
     /** The new shape's first side waits for a reading. A shape with no length or no area is ignored. */
     fun add(shape: SketchShape): Sketch =
         if (shape.edges.any { it.a == it.b } || shapes.any { it.id == shape.id }) this
-        else Sketch(shapes + shape, SideRef(shape.id, 0))
+        else changed(shapes + shape, SideRef(shape.id, 0))
 
     /**
      * Measures the target with [mm] and redraws it that long, with the shapes joined to it following; then waits for
@@ -124,18 +134,31 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         val before = shapes.first { it.id == t.shapeId }
         val shape = before.measured(t.side, mm)
         val next = shape.sides.indexOfFirst { it == null }.takeIf { it >= 0 }?.let { SideRef(shape.id, it) }
-        return Sketch(follow(shapes, before, shape), next)
+        return changed(follow(before, shape), next)
     }
 
     /** The next reading re-measures [ref]. */
-    fun select(ref: SideRef) = if (isSide(ref)) copy(target = ref) else this
+    fun select(ref: SideRef) = if (shapes.has(ref)) copy(target = ref) else this
 
-    fun delete(id: Long) = Sketch(shapes.filterNot { it.id == id }, target?.takeIf { it.shapeId != id })
+    fun delete(id: Long) = changed(shapes.filterNot { it.id == id }, target?.takeIf { it.shapeId != id })
 
-    /** Removes the shape drawn last. */
-    fun undo() = shapes.lastOrNull()?.let { delete(it.id) } ?: this
+    /** Shifts shape [id] by [d] alone; shapes joined to it stay where they are and its measurements are kept. */
+    fun move(id: Long, d: Pt) = changed(shapes.map { if (it.id == id) it.mapPoints { p -> p + d } else it }, target)
+
+    /**
+     * Steps back over the last change to the shapes. With nothing remembered, as in a sketch saved before changes
+     * were, it removes the shape drawn last.
+     */
+    fun undo(): Sketch {
+        val previous = past.lastOrNull() ?: shapes.dropLast(1)
+        return Sketch(previous, target?.takeIf { previous.has(it) }, past.dropLast(1))
+    }
 
     fun clear() = Sketch()
+
+    /** [next] in place of the shapes, remembering these for [undo] unless nothing changed. */
+    private fun changed(next: List<SketchShape>, target: SideRef?) =
+        if (next == shapes) copy(target = target) else Sketch(next, target, (past + listOf(shapes)).takeLast(UNDO_DEPTH))
 
     /** Square metres of every fully measured rectangle; null when there is none. */
     val totalArea: Double?
@@ -154,6 +177,31 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         return corner?.first ?: Pt((x / step).roundToInt() * step, (y / step).roundToInt() * step)
     }
 
+    /**
+     * The shift that drops shape [id], dragged by ([dx], [dy]) mm, with one of its points on another shape's end or
+     * corner within [reach] mm, so the two join; or else on the nearest dot of a grid [step] mm apart.
+     */
+    fun dropShift(id: Long, dx: Float, dy: Float, reach: Float, step: Int = GRID_MM): Pt {
+        val moved = shapes.firstOrNull { it.id == id } ?: return Pt(0, 0)
+        val others = shapes.filter { it.id != id }.flatMap { it.points }
+        fun gap(from: Pt, to: Pt) = hypot(to.x - (from.x + dx), to.y - (from.y + dy))
+        val join = moved.points
+            .flatMap { p -> others.map { p to it } }
+            .filter { (p, q) -> gap(p, q) <= reach }
+            .minByOrNull { (p, q) -> gap(p, q) }
+        val (from, to) = join ?: moved.points
+            .map { p -> p to Pt(((p.x + dx) / step).roundToInt() * step, ((p.y + dy) / step).roundToInt() * step) }
+            .minBy { (p, q) -> gap(p, q) }
+        return to - from
+    }
+
+    /** The shape at ([x], [y]) mm: one with a side within [tolerance] mm, or else a rectangle around it. */
+    fun shapeAt(x: Float, y: Float, tolerance: Float): Long? =
+        sideAt(x, y, tolerance)?.shapeId ?: shapes.lastOrNull {
+            it is Rect && x in minOf(it.a.x, it.b.x).toFloat()..maxOf(it.a.x, it.b.x).toFloat() &&
+                y in minOf(it.a.y, it.b.y).toFloat()..maxOf(it.a.y, it.b.y).toFloat()
+        }?.id
+
     /** The side drawn nearest to ([x], [y]) mm, if one is within [tolerance] mm. */
     fun sideAt(x: Float, y: Float, tolerance: Float): SideRef? = shapes
         .flatMap { s -> s.edges.map { SideRef(s.id, it.side) to distance(x, y, it) } }
@@ -162,13 +210,13 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         ?.first
 
     /**
-     * [shapes] with [before] replaced by [after] and the shapes joined where its points moved following them.
+     * The shapes with [before] replaced by [after] and those joined where its points moved following them.
      * A follower touching nothing that stays slides along whole, so a chain of walls keeps its shape and pulls the
      * next one in turn. One that also touches a point that stays is stretched instead, only its ends at a moving point
      * following, which lets the wall closing a loop give; a rectangle is left as it is rather than skewed.
      * Shapes joined only where [before] stays keep their place and hold their other points too.
      */
-    private fun follow(shapes: List<SketchShape>, before: SketchShape, after: SketchShape): List<SketchShape> {
+    private fun follow(before: SketchShape, after: SketchShape): List<SketchShape> {
         val moves = before.points.zip(after.points).filter { (p, q) -> p != q }
         val done = hashMapOf(after.id to after)
         if (moves.isNotEmpty()) {
@@ -200,8 +248,6 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         return shapes.map { done[it.id] ?: it }
     }
 
-    private fun isSide(ref: SideRef) = shapes.any { it.id == ref.shapeId && ref.side in it.sides.indices }
-
     private fun distance(x: Float, y: Float, e: Edge): Float {
         val dx = (e.b.x - e.a.x).toFloat()
         val dy = (e.b.y - e.a.y).toFloat()
@@ -210,3 +256,5 @@ data class Sketch(val shapes: List<SketchShape> = emptyList(), val target: SideR
         return hypot(x - (e.a.x + t * dx), y - (e.a.y + t * dy))
     }
 }
+
+private fun List<SketchShape>.has(ref: SideRef) = any { it.id == ref.shapeId && ref.side in it.sides.indices }

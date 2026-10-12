@@ -76,12 +76,57 @@ class SketchTest {
     }
 
     @Test
-    fun undoRemovesTheLastShape() {
+    fun undoStepsBackOverEachDrawingAndReading() {
         val s = Sketch().add(line).put(1000).add(room)
-        assertEquals(Sketch(listOf(line.copy(b = Pt(1000, 0), mm = 1000))), s.undo())
-        val empty = Sketch()
-        assertSame(empty, empty.undo())
+        val noRoom = s.undo()
+        assertEquals(listOf(line.copy(b = Pt(1000, 0), mm = 1000)), noRoom.shapes)
+        assertNull("the room it waited for is gone", noRoom.target)
+        assertEquals("the reading is undone with the length it gave", listOf(line), noRoom.undo().shapes)
+        assertEquals(Sketch(), noRoom.undo().undo())
+        assertEquals(Sketch(), Sketch().undo())
         assertEquals(Sketch(), s.clear())
+    }
+
+    @Test
+    fun undoInASketchWithNoRememberedChangesRemovesTheLastShape() {
+        val saved = Sketch(listOf(line, room), SideRef(2, 1))
+        assertEquals(Sketch(listOf(line)), saved.undo())
+    }
+
+    @Test
+    fun movingAShapeLeavesItsMeasurementsAndNeighboursAndCanBeUndone() {
+        val wall = Segment(3, Pt(2500, 0), Pt(2500, -1000))
+        val s = Sketch().add(room).put(2500).put(1500).add(wall)
+        val moved = s.move(2, Pt(-500, 3000))
+        assertEquals(
+            listOf(Rect(2, Pt(-500, 3000), Pt(2000, 4500), 2500, 1500), wall),
+            moved.shapes,
+        )
+        assertEquals(SideRef(3, 0), moved.target)
+        assertEquals(s.shapes, moved.undo().shapes)
+        assertEquals("not moving is not a change", s, s.move(2, Pt(0, 0)))
+    }
+
+    @Test
+    fun aDraggedShapeDropsOntoANearbyEndBeforeTheNearestDot() {
+        val s = Sketch()
+            .add(Segment(1, Pt(0, 0), Pt(1234, 0)))
+            .add(Segment(2, Pt(0, 1000), Pt(1000, 1000)))
+        assertEquals("its start lands on the other line's end", Pt(1234, -1000), s.dropShift(2, 1200f, -950f, reach = 300f))
+        assertEquals(Pt(500, 0), s.dropShift(2, 480f, 30f, reach = 300f))
+        assertEquals(Pt(1000, 0), s.dropShift(2, 880f, 30f, reach = 100f, step = 1000))
+
+        val offGrid = Sketch().add(Segment(1, Pt(100, 0), Pt(1100, 0)))
+        assertEquals("one of its points lands on a dot", Pt(400, 0), offGrid.dropShift(1, 380f, 0f, reach = 0f))
+        assertEquals("its own old place is no end to join", Pt(-100, 0), offGrid.dropShift(1, 30f, 30f, reach = 300f))
+    }
+
+    @Test
+    fun aShapeIsPickedByItsSidesOrInsideARectangle() {
+        val s = Sketch().add(room).add(Segment(1, Pt(5000, 0), Pt(6000, 0)))
+        assertEquals(2L, s.shapeAt(1250f, 750f, 250f))
+        assertEquals(1L, s.shapeAt(5500f, 200f, 250f))
+        assertNull(s.shapeAt(4000f, 2000f, 250f))
     }
 
     @Test
@@ -219,7 +264,7 @@ class SketchTest {
             """{"type":"segment","id":1,"a":{"x":0,"y":0},"b":{"x":2345,"y":0},"mm":2345},""" +
             """{"type":"rect","id":2,"a":{"x":0,"y":0},"b":{"x":4000,"y":1500},"widthMm":4000}""" +
             """],"target":{"shapeId":2,"side":1}}"""
-        assertEquals(s, StoreJson.decodeFromString<Sketch>(stored))
+        assertEquals(Sketch(s.shapes, s.target), StoreJson.decodeFromString<Sketch>(stored))
     }
 
     @Test

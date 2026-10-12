@@ -115,6 +115,7 @@ private val MinDotGap = 12.dp
 
 /** How many dot spacings apart the shown dots may be, from 0.5 m up to 10 m. */
 private val DotSteps = listOf(1, 2, 10, 20)
+
 private const val MIN_SCALE = 0.1f
 private const val MAX_SCALE = 4f
 
@@ -197,6 +198,8 @@ fun SketchScreen(
                 vm.select(it)
                 editing = it
             },
+            onMove = vm::move,
+            onPickUp = { if (ui.settings.haptics) haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
             onTouch = { editing = null },
             modifier = inset.weight(1f).fillMaxWidth(),
         )
@@ -246,7 +249,7 @@ fun SketchScreen(
             val action = Modifier.weight(1f).height(72.dp)
             FilledTonalButton(
                 onClick = vm::undo,
-                enabled = sketch.shapes.isNotEmpty(),
+                enabled = sketch.shapes.isNotEmpty() || sketch.past.isNotEmpty(),
                 modifier = action,
                 contentPadding = ActionPadding,
                 shapes = ButtonDefaults.shapes(),
@@ -373,9 +376,24 @@ private fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, m
 
 // ----------------------------------------------------------------- canvas
 
+/** What one finger on the sketch turned out to be doing. */
+private sealed interface Touch {
+    /** Down and still: not yet a stroke or a hold, and a tap if it lifts now. */
+    data object Pending : Touch
+
+    data class Drawing(val start: Pt, val end: Pt) : Touch
+
+    /** Holding shape [id] after a long press; once [moved], [shift] is where it would drop. */
+    data class Carrying(val id: Long, val shift: Pt = Pt(0, 0), val moved: Boolean = false) : Touch
+
+    /** Two fingers: pan and zoom only. */
+    data object Viewing : Touch
+}
+
 /**
- * The dot grid with the sketch on it. One finger draws with [tool] or, without moving, taps a side to select it;
- * two fingers pan and zoom. Each increment of [fits] frames the whole sketch.
+ * The dot grid with the sketch on it. One finger draws with [tool] or, without moving, taps a side to select it and
+ * double-taps it to [onEdit] it; holding a shape picks it up to drag it. Two fingers pan and zoom. Each increment of
+ * [fits] frames the whole sketch.
  */
 @Composable
 private fun SketchCanvas(
@@ -386,6 +404,8 @@ private fun SketchCanvas(
     onDraw: (Pt, Pt) -> Unit,
     onSelect: (SideRef) -> Unit,
     onEdit: (SideRef) -> Unit,
+    onMove: (Long, Pt) -> Unit,
+    onPickUp: () -> Unit,
     onTouch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -398,7 +418,7 @@ private fun SketchCanvas(
     // Where the sketch's (0, 0) sits on the canvas, in pixels.
     var originX by rememberSaveable { mutableFloatStateOf(spacing) }
     var originY by rememberSaveable { mutableFloatStateOf(spacing) }
-    var preview by remember { mutableStateOf<Pair<Pt, Pt>?>(null) }
+    var gesture by remember { mutableStateOf<Touch?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     val padding = with(density) { FitPadding.toPx() }
 
@@ -439,6 +459,8 @@ private fun SketchCanvas(
     val draw by rememberUpdatedState(onDraw)
     val select by rememberUpdatedState(onSelect)
     val edit by rememberUpdatedState(onEdit)
+    val move by rememberUpdatedState(onMove)
+    val pickUp by rememberUpdatedState(onPickUp)
     val touch by rememberUpdatedState(onTouch)
 
     val scheme = MaterialTheme.colorScheme
@@ -460,24 +482,39 @@ private fun SketchCanvas(
                         down.uptimeMillis - at <= viewConfiguration.doubleTapTimeoutMillis && (down.position - p).getDistance() <= tapReach
                     } == true
                     lastTap = null
-                    var liftedAt = down.uptimeMillis
                     fun mmPerPx() = GRID_MM / (spacing * scale)
                     fun world(p: Offset) = Offset(p.x - originX, p.y - originY) * mmPerPx()
-                    fun snap(p: Offset): Pt = world(p).let {
-                        current.snap(it.x, it.y, snapReach * mmPerPx(), GRID_MM * dotStep(spacing * scale, minDotGap))
-                    }
+                    fun step() = GRID_MM * dotStep(spacing * scale, minDotGap)
+                    fun snap(p: Offset): Pt = world(p).let { current.snap(it.x, it.y, snapReach * mmPerPx(), step()) }
+                    fun sideAtDown() = world(down.position).let { current.sideAt(it.x, it.y, tapReach * mmPerPx()) }
 
-                    var start: Pt? = null
-                    var transforming = false
+                    var state: Touch = Touch.Pending
+                    // Past the long-press wait, or a double tap, which never picks a shape up.
+                    var held = second
+                    var lastAt = down.uptimeMillis
                     while (true) {
-                        val event = awaitPointerEvent()
-                        liftedAt = event.changes.first().uptimeMillis
+                        val event = if (state == Touch.Pending && !held) {
+                            val wait = down.uptimeMillis + viewConfiguration.longPressTimeoutMillis - lastAt
+                            withTimeoutOrNull(wait.coerceAtLeast(0)) { awaitPointerEvent() }
+                        } else {
+                            awaitPointerEvent()
+                        }
+                        if (event == null) {
+                            held = true
+                            world(down.position).let { current.shapeAt(it.x, it.y, tapReach * mmPerPx()) }?.let {
+                                state = Touch.Carrying(it)
+                                gesture = state
+                                pickUp()
+                            }
+                            continue
+                        }
+                        lastAt = event.changes.first().uptimeMillis
                         val pressed = event.changes.count { it.pressed }
                         if (pressed == 0) break
                         // Once a second finger lands, the rest of the gesture only moves the view.
-                        if (transforming || pressed > 1) {
-                            transforming = true
-                            preview = null
+                        if (state == Touch.Viewing || pressed > 1) {
+                            state = Touch.Viewing
+                            gesture = null
                             // A finger landing or lifting shifts the centroid; skip that frame instead of jumping.
                             if (event.changes.all { it.pressed == it.previousPressed }) {
                                 val centroid = event.calculateCentroid()
@@ -492,26 +529,37 @@ private fun SketchCanvas(
                             continue
                         }
                         val change = event.changes.firstOrNull { it.id == down.id } ?: continue
-                        if (start == null && !second && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
-                            start = snap(down.position)
+                        val moved = (change.position - down.position).getDistance() > viewConfiguration.touchSlop
+                        state = when (val now = state) {
+                            Touch.Pending ->
+                                if (moved && !second) Touch.Drawing(snap(down.position), snap(change.position)) else now
+                            is Touch.Drawing -> now.copy(end = snap(change.position))
+                            is Touch.Carrying ->
+                                if (!moved && !now.moved) {
+                                    now
+                                } else {
+                                    val drag = (change.position - down.position) * mmPerPx()
+                                    now.copy(shift = current.dropShift(now.id, drag.x, drag.y, snapReach * mmPerPx(), step()), moved = true)
+                                }
+                            Touch.Viewing -> now
                         }
-                        start?.let {
-                            preview = it to snap(change.position)
+                        if (state != Touch.Pending) {
+                            gesture = state
                             change.consume()
                         }
                     }
-                    val drawn = preview
-                    preview = null
-                    when {
-                        transforming -> Unit
-                        drawn != null -> draw(drawn.first, drawn.second)
-                        start == null -> {
-                            val side = world(down.position).let { current.sideAt(it.x, it.y, tapReach * mmPerPx()) }
+                    gesture = null
+                    when (val end = state) {
+                        Touch.Viewing -> Unit
+                        is Touch.Drawing -> draw(end.start, end.end)
+                        is Touch.Carrying -> if (end.moved) move(end.id, end.shift) else select(sideAtDown() ?: SideRef(end.id, 0))
+                        Touch.Pending -> {
+                            val side = sideAtDown()
                             if (second) {
                                 side?.let(edit)
                             } else {
                                 side?.let(select)
-                                lastTap = liftedAt to down.position
+                                if (!held) lastTap = lastAt to down.position
                             }
                         }
                     }
@@ -530,22 +578,26 @@ private fun SketchCanvas(
         drawPoints(dots, PointMode.Points, scheme.outlineVariant, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
 
         val target = current.target
+        val carried = gesture as? Touch.Carrying
+        val shapes = current.shapes.map { s -> if (s.id == carried?.id) s.mapPoints { it + carried.shift } else s }
         val dash = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))
-        // The selected side goes last so it stays on top where shapes share an edge.
-        current.shapes
-            .flatMap { s -> s.edges.map { e -> Triple(e, SideRef(s.id, e.side) == target, s.sides[e.side] != null) } }
+        // The selected side and a shape being carried go last so they stay on top where shapes share an edge.
+        shapes
+            .flatMap { s ->
+                s.edges.map { e -> Triple(e, SideRef(s.id, e.side) == target || s.id == carried?.id, s.sides[e.side] != null) }
+            }
             .sortedBy { it.second }
-            .forEach { (e, selected, measured) ->
+            .forEach { (e, raised, measured) ->
                 drawLine(
-                    color = if (selected) scheme.primary else scheme.onSurface,
+                    color = if (raised) scheme.primary else scheme.onSurface,
                     start = at(e.a),
                     end = at(e.b),
-                    strokeWidth = (if (selected) 5.dp else 3.dp).toPx(),
+                    strokeWidth = (if (raised) 5.dp else 3.dp).toPx(),
                     cap = StrokeCap.Round,
                     pathEffect = if (measured) null else dash,
                 )
             }
-        preview?.let { (a, b) ->
+        (gesture as? Touch.Drawing)?.let { (a, b) ->
             val shape: SketchShape = if (tool == SketchTool.LINE) Segment(0, a, b) else Rect(0, a, b)
             shape.edges.forEach {
                 drawLine(scheme.primary.copy(alpha = 0.6f), at(it.a), at(it.b), 3.dp.toPx(), StrokeCap.Round)
@@ -555,7 +607,7 @@ private fun SketchCanvas(
         fun label(text: String, center: Offset, degrees: Float, background: Color, color: Color) {
             pill(measurer.measure(text, labelStyle.copy(color = color)), center, degrees, background)
         }
-        current.shapes.forEach { s ->
+        shapes.forEach { s ->
             s.sides.forEachIndexed { side, mm ->
                 val e = s.edges.first { it.side == side }
                 val a = at(e.a)

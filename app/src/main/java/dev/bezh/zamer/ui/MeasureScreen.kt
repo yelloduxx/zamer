@@ -209,7 +209,7 @@ private fun ModePage(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit, modifier: Modifier = Modifier) {
+internal fun ModeSelector(selected: MeasureMode, onSelect: (MeasureMode) -> Unit, modifier: Modifier = Modifier) {
     val modes = MeasureMode.entries
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -389,7 +389,7 @@ private fun Readout(
 /** The result's name, edited in place: tap the button and it becomes a text field. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun InlineName(saved: HistoryEntry, onRename: (Long, String) -> Unit) {
+internal fun InlineName(saved: HistoryEntry, onRename: (Long, String) -> Unit) {
     var editing by rememberSaveable(saved.id) { mutableStateOf(false) }
     if (!editing) {
         FilledTonalButton(onClick = { editing = true }, shapes = ButtonDefaults.shapes()) {
@@ -412,7 +412,7 @@ private fun LocalContentColorAlpha(alpha: Float) =
 // ------------------------------------------------------------------ slots
 
 @Composable
-private fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSelect: (Int) -> Unit) {
+internal fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = TileSpacing) {
         draft.values.forEachIndexed { i, mm ->
             val waiting = i == draft.next
@@ -446,7 +446,7 @@ private fun SlotRow(mode: MeasureMode, draft: Draft, formatter: Formatter, onSel
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ActionRow(canUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit, modifier: Modifier = Modifier) {
     val padding = PaddingValues(horizontal = 16.dp)
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         FilledTonalButton(

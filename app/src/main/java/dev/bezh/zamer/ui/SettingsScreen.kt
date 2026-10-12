@@ -204,7 +204,7 @@ private val Languages = listOf(
 
 /** The per-app language. Android stores it and restarts the screen in the new language. */
 @Composable
-private fun LanguageCard() {
+internal fun LanguageCard() {
     var open by remember { mutableStateOf(false) }
     val current = AppCompatDelegate.getApplicationLocales()[0]?.language
     val (_, name) = Languages.firstOrNull { (tag, _) -> tag != null && tag.substringBefore('-') == current } ?: Languages.first()
@@ -236,7 +236,7 @@ private fun LanguageCard() {
 }
 
 @Composable
-private fun SettingsCard(title: String?, icon: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+internal fun SettingsCard(title: String?, icon: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Surface(shape = RoundedCornerShape(32.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (title != null) {
@@ -251,7 +251,7 @@ private fun SettingsCard(title: String?, icon: (@Composable () -> Unit)? = null,
 }
 
 @Composable
-private fun SwitchRow(label: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(label: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(label), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange)
@@ -260,7 +260,7 @@ private fun SwitchRow(label: Int, checked: Boolean, onChange: (Boolean) -> Unit)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun <T> Segmented(options: List<Pair<Int, T>>, selected: T?, onSelect: (T) -> Unit, enabled: Boolean = true) {
+internal fun <T> Segmented(options: List<Pair<Int, T>>, selected: T?, onSelect: (T) -> Unit, enabled: Boolean = true) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
         options.forEachIndexed { i, (label, value) ->
             ToggleButton(

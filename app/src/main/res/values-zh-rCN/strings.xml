@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zamer</string>
+
+    <string name="tab_measure">测量</string>
+    <string name="tab_history">历史</string>
+    <string name="tab_settings">设置</string>
+
+    <string name="mode_distance">长度</string>
+    <string name="mode_area">面积</string>
+    <string name="mode_volume">体积</string>
+    <string name="mode_height">高度</string>
+
+    <string name="slot_length">长度</string>
+    <string name="slot_width">宽度</string>
+    <string name="slot_height">高度</string>
+    <string name="slot_base">沿地面</string>
+    <string name="slot_hypotenuse">到目标</string>
+    <string name="slot_next_distance">测量一段距离</string>
+    <string name="slot_next_length">现在测量长度</string>
+    <string name="slot_next_width">现在测量宽度</string>
+    <string name="slot_next_height">现在测量高度</string>
+    <string name="slot_next_base">现在沿地面测量</string>
+    <string name="slot_next_hypotenuse">现在测量到目标</string>
+    <string name="height_howto">将测距仪的后角抵在地面上：先沿地面测量到目标正下方的点，然后保持该角不动，斜向测量到目标。</string>
+    <string name="hero_hint_start">按下测距仪上的测量键</string>
+
+    <string name="result_distance">距离</string>
+    <string name="result_area">面积</string>
+    <string name="result_volume">体积</string>
+    <string name="result_height">高度</string>
+    <string name="height_impossible">斜向测量值必须大于沿地面的测量值</string>
+    <string name="extra_perimeter">周长</string>
+    <string name="extra_floor">地面面积</string>
+    <string name="last_reading">上次测量值</string>
+    <string name="name_it">命名</string>
+    <string name="name_title">为结果命名</string>
+    <string name="name_hint">例如：厨房地面</string>
+    <string name="recent_readings">最近的测量值</string>
+
+    <string name="sketch_title">草图</string>
+    <string name="sketch_total_area">面积 %1$s</string>
+    <string name="sketch_prompt_measure">用测距仪测量高亮的边，或双击该边输入长度</string>
+    <string name="sketch_prompt_draw">画一条线或一个矩形</string>
+    <string name="sketch_prompt_select">点按一条边可重新测量，双击可输入其长度</string>
+    <string name="sketch_tool_line">直线</string>
+    <string name="sketch_tool_rect">矩形</string>
+    <string name="sketch_fit">显示全部</string>
+    <string name="sketch_clear_confirm">清除整个草图？</string>
+    <string name="action_back">返回</string>
+
+    <string name="action_undo">撤销</string>
+    <string name="action_reset">重新开始</string>
+    <string name="action_copy">复制</string>
+    <string name="action_share">分享</string>
+    <string name="action_delete">删除</string>
+    <string name="action_apply">应用</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_clear">清除</string>
+    <string name="copied">已复制</string>
+
+    <string name="status_connected">已连接</string>
+    <string name="status_searching">正在查找测距仪…</string>
+    <string name="status_connecting">正在连接…</string>
+    <string name="status_bt_off">蓝牙已关闭</string>
+    <string name="status_permission">需要蓝牙权限</string>
+    <string name="status_repair">需要重新配对</string>
+    <string name="status_not_paired">尚未配对测距仪</string>
+    <string name="action_enable_bt">开启</string>
+    <string name="action_allow">允许</string>
+    <string name="action_pair">配对</string>
+
+    <string name="history_title">历史</string>
+    <string name="history_tab_results">结果</string>
+    <string name="history_tab_readings">测量值</string>
+    <string name="history_empty">你的结果会显示在这里</string>
+    <string name="history_search">按名称搜索</string>
+    <string name="history_search_empty">未找到任何内容</string>
+    <string name="readings_empty">测距仪的每个测量值都会显示在这里</string>
+    <string name="history_clear">全部清除</string>
+    <string name="history_clear_confirm">删除所有已保存的结果？</string>
+    <string name="readings_clear_confirm">删除测距仪的全部测量值记录？</string>
+    <string name="today">今天</string>
+    <string name="yesterday">昨天</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_device">测距仪</string>
+    <string name="settings_units">单位</string>
+    <string name="units_metric">米 (m)</string>
+    <string name="units_imperial">英尺 (ft)</string>
+    <string name="settings_precision">小数位数</string>
+    <string name="settings_theme">主题</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="settings_keep_on">保持屏幕常亮</string>
+    <string name="settings_haptics">每次测量时振动</string>
+    <string name="settings_dynamic">从壁纸取色</string>
+    <string name="settings_repair">重新配对</string>
+    <string name="settings_forget">取消配对</string>
+    <string name="settings_forget_confirm">在你重新配对之前，应用将不再连接这台测距仪。</string>
+    <string name="settings_about">配对直接在本手机与测距仪之间完成，不使用小米账号或云端。</string>
+
+    <string name="pairing_title">连接你的测距仪</string>
+    <string name="pairing_intro">开启测距仪，让蓝牙图标闪烁，并放在手机附近。无需小米账号。</string>
+    <string name="pairing_searching">正在搜索…</string>
+    <string name="pairing_none_found">暂未找到。测距仪是否已开启，且没有连接其他应用？</string>
+    <string name="pairing_in_progress">正在与 %1$s 配对…</string>
+    <string name="pairing_failed">配对失败：%1$s</string>
+    <string name="pairing_retry">重试</string>
+    <string name="pairing_need_permission">应用需要蓝牙权限才能找到你的测距仪。</string>
+    <string name="pairing_need_bluetooth">请开启蓝牙以继续。</string>
+    <string name="settings_rangefinder">测距仪设置</string>
+    <string name="device_reference">测量基准</string>
+    <string name="reference_rear">后基准</string>
+    <string name="reference_front">前基准</string>
+    <string name="device_settings_hint">测量基准会直接在测距仪上更改。单位会同时在应用和测距仪上更改。</string>
+    <string name="device_settings_offline">测距仪连接后才能更改测量基准。单位会在测距仪连接时同步过去。</string>
+    <string name="settings_language">语言</string>
+    <string name="language_system">跟随系统</string>
+</resources>

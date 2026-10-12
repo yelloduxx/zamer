@@ -84,7 +84,7 @@ import dev.bezh.zamer.domain.MeasureResult
 import dev.bezh.zamer.domain.Reading
 import kotlinx.coroutines.launch
 
-private enum class HistoryTab(val label: Int, val clearConfirm: Int) {
+internal enum class HistoryTab(val label: Int, val clearConfirm: Int) {
     Results(R.string.history_tab_results, R.string.history_clear_confirm),
     Readings(R.string.history_tab_readings, R.string.readings_clear_confirm),
 }
@@ -154,7 +154,7 @@ fun HistoryScreen(container: AppContainer, contentPadding: PaddingValues) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun TabSelector(selected: HistoryTab, onSelect: (HistoryTab) -> Unit, modifier: Modifier = Modifier) {
+internal fun TabSelector(selected: HistoryTab, onSelect: (HistoryTab) -> Unit, modifier: Modifier = Modifier) {
     val tabs = HistoryTab.entries
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
         tabs.forEachIndexed { i, t ->

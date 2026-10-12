@@ -290,7 +290,7 @@ private val ActionPadding = PaddingValues(horizontal = 8.dp)
 
 /** A side's length typed in [unit], opened with the keyboard up; [onDone] gets the text when the user confirms it. */
 @Composable
-private fun LengthField(
+internal fun LengthField(
     initial: String,
     unit: String,
     valid: (String) -> Boolean,
@@ -326,7 +326,7 @@ private fun LengthField(
 
 /** Icon over label, so three actions fit side by side on a narrow phone. */
 @Composable
-private fun ActionLabel(icon: ImageVector, label: Int) {
+internal fun ActionLabel(icon: ImageVector, label: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
         Text(
@@ -341,7 +341,7 @@ private fun ActionLabel(icon: ImageVector, label: Int) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, modifier: Modifier = Modifier) {
+internal fun ToolSelector(selected: SketchTool, onSelect: (SketchTool) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),

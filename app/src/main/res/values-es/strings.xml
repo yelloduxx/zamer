@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zamer</string>
+
+    <string name="tab_measure">Medir</string>
+    <string name="tab_history">Historial</string>
+    <string name="tab_settings">Ajustes</string>
+
+    <string name="mode_distance">Longitud</string>
+    <string name="mode_area">Área</string>
+    <string name="mode_volume">Volumen</string>
+    <string name="mode_height">Altura</string>
+
+    <string name="slot_length">Largo</string>
+    <string name="slot_width">Ancho</string>
+    <string name="slot_height">Alto</string>
+    <string name="slot_base">Por el suelo</string>
+    <string name="slot_hypotenuse">Al objetivo</string>
+    <string name="slot_next_distance">Mide una distancia</string>
+    <string name="slot_next_length">Ahora mide el largo</string>
+    <string name="slot_next_width">Ahora mide el ancho</string>
+    <string name="slot_next_height">Ahora mide el alto</string>
+    <string name="slot_next_base">Ahora mide por el suelo</string>
+    <string name="slot_next_hypotenuse">Ahora mide hasta el objetivo</string>
+    <string name="height_howto">Apoya la esquina trasera del medidor en el suelo: primero mide por el suelo hasta el punto que está debajo del objetivo y luego, sin mover esa esquina, mide en diagonal hasta el objetivo.</string>
+    <string name="hero_hint_start">Presiona el botón de medición del medidor láser</string>
+
+    <string name="result_distance">Distancia</string>
+    <string name="result_area">Área</string>
+    <string name="result_volume">Volumen</string>
+    <string name="result_height">Altura</string>
+    <string name="height_impossible">La medición en diagonal debe ser más larga que la del suelo</string>
+    <string name="extra_perimeter">Perímetro</string>
+    <string name="extra_floor">Área del suelo</string>
+    <string name="last_reading">Última medición</string>
+    <string name="name_it">Ponle nombre</string>
+    <string name="name_title">Nombre del resultado</string>
+    <string name="name_hint">p. ej., Suelo de la cocina</string>
+    <string name="recent_readings">Mediciones recientes</string>
+
+    <string name="sketch_title">Croquis</string>
+    <string name="sketch_total_area">Área: %1$s</string>
+    <string name="sketch_prompt_measure">Mide el lado resaltado con el medidor o tócalo dos veces para escribir la longitud</string>
+    <string name="sketch_prompt_draw">Dibuja una línea o un rectángulo</string>
+    <string name="sketch_prompt_select">Toca un lado para volver a medirlo o tócalo dos veces para escribir su longitud</string>
+    <string name="sketch_tool_line">Línea</string>
+    <string name="sketch_tool_rect">Rectángulo</string>
+    <string name="sketch_fit">Ver todo</string>
+    <string name="sketch_clear_confirm">¿Borrar todo el croquis?</string>
+    <string name="action_back">Atrás</string>
+
+    <string name="action_undo">Deshacer</string>
+    <string name="action_reset">Reiniciar</string>
+    <string name="action_copy">Copiar</string>
+    <string name="action_share">Compartir</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_apply">Aplicar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_clear">Borrar</string>
+    <string name="copied">Copiado</string>
+
+    <string name="status_connected">Conectado</string>
+    <string name="status_searching">Buscando el medidor…</string>
+    <string name="status_connecting">Conectando…</string>
+    <string name="status_bt_off">Bluetooth desactivado</string>
+    <string name="status_permission">Permiso de Bluetooth</string>
+    <string name="status_repair">Vínculo perdido</string>
+    <string name="status_not_paired">Aún no hay medidor</string>
+    <string name="action_enable_bt">Activar</string>
+    <string name="action_allow">Permitir</string>
+    <string name="action_pair">Vincular</string>
+
+    <string name="history_title">Historial</string>
+    <string name="history_tab_results">Resultados</string>
+    <string name="history_tab_readings">Mediciones</string>
+    <string name="history_empty">Aquí aparecerán tus resultados</string>
+    <string name="history_search">Buscar por nombre</string>
+    <string name="history_search_empty">No se encontró nada</string>
+    <string name="readings_empty">Aquí aparecerá cada medición del medidor</string>
+    <string name="history_clear">Borrar todo</string>
+    <string name="history_clear_confirm">¿Eliminar todos los resultados guardados?</string>
+    <string name="readings_clear_confirm">¿Eliminar todo el registro de mediciones del medidor?</string>
+    <string name="today">Hoy</string>
+    <string name="yesterday">Ayer</string>
+
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_device">Medidor láser</string>
+    <string name="settings_units">Unidades</string>
+    <string name="units_metric">Metros (m)</string>
+    <string name="units_imperial">Pies (ft)</string>
+    <string name="settings_precision">Decimales</string>
+    <string name="settings_theme">Tema</string>
+    <string name="theme_system">Sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="settings_keep_on">No apagar la pantalla</string>
+    <string name="settings_haptics">Vibrar al medir</string>
+    <string name="settings_dynamic">Colores del fondo</string>
+    <string name="settings_repair">Vincular de nuevo</string>
+    <string name="settings_forget">Olvidar</string>
+    <string name="settings_forget_confirm">La app dejará de conectarse a este medidor hasta que vuelvas a vincularlo.</string>
+    <string name="settings_about">La vinculación se hace directamente entre este teléfono y el medidor. No se usa ninguna cuenta Mi ni la nube.</string>
+
+    <string name="pairing_title">Conecta tu medidor láser</string>
+    <string name="pairing_intro">Enciéndelo para que parpadee el icono de Bluetooth y mantenlo cerca. No necesitas una cuenta Mi.</string>
+    <string name="pairing_searching">Buscando…</string>
+    <string name="pairing_none_found">Aún no se encontró nada. ¿Está encendido y sin conexión con otra app?</string>
+    <string name="pairing_in_progress">Vinculando con %1$s…</string>
+    <string name="pairing_failed">No se pudo vincular: %1$s</string>
+    <string name="pairing_retry">Reintentar</string>
+    <string name="pairing_need_permission">La app necesita acceso a Bluetooth para encontrar tu medidor.</string>
+    <string name="pairing_need_bluetooth">Activa el Bluetooth para continuar.</string>
+    <string name="settings_rangefinder">Ajustes del medidor</string>
+    <string name="device_reference">Medir desde</string>
+    <string name="reference_rear">Borde trasero</string>
+    <string name="reference_front">Borde frontal</string>
+    <string name="device_settings_hint">El borde de referencia se cambia directamente en el medidor. Las unidades cambian en la app y en el medidor.</string>
+    <string name="device_settings_offline">El borde de referencia se puede cambiar mientras el medidor está conectado. Las unidades se enviarán al medidor cuando se conecte.</string>
+    <string name="settings_language">Idioma</string>
+    <string name="language_system">Idioma del sistema</string>
+</resources>

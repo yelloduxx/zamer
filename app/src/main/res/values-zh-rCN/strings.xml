@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Zamer</string>
-
     <string name="tab_measure">测量</string>
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
-
     <string name="mode_distance">长度</string>
     <string name="mode_area">面积</string>
     <string name="mode_volume">体积</string>
     <string name="mode_height">高度</string>
-
     <string name="slot_length">长度</string>
     <string name="slot_width">宽度</string>
     <string name="slot_height">高度</string>
@@ -24,7 +21,6 @@
     <string name="slot_next_hypotenuse">现在测量到目标</string>
     <string name="height_howto">将测距仪的后角抵在地面上：先沿地面测量到目标正下方的点，然后保持该角不动，斜向测量到目标。</string>
     <string name="hero_hint_start">按下测距仪上的测量键</string>
-
     <string name="result_distance">距离</string>
     <string name="result_area">面积</string>
     <string name="result_volume">体积</string>
@@ -37,7 +33,6 @@
     <string name="name_title">为结果命名</string>
     <string name="name_hint">例如：厨房地面</string>
     <string name="recent_readings">最近的测量值</string>
-
     <string name="sketch_title">草图</string>
     <string name="sketch_total_area">面积 %1$s</string>
     <string name="sketch_prompt_measure">用测距仪测量高亮的边，或双击该边输入长度</string>
@@ -45,10 +40,27 @@
     <string name="sketch_prompt_select">点按一条边可重新测量，双击可输入其长度</string>
     <string name="sketch_tool_line">直线</string>
     <string name="sketch_tool_rect">矩形</string>
+    <string name="sketch_tool_text">文字</string>
+    <string name="sketch_note">备注</string>
+    <string name="sketch_prompt_note">点按要放置备注的位置</string>
     <string name="sketch_fit">显示全部</string>
     <string name="sketch_clear_confirm">清除整个草图？</string>
     <string name="action_back">返回</string>
-
+    <string name="sketches_title">草图</string>
+    <string name="sketches_empty">你的草图会显示在这里</string>
+    <string name="sketch_new_plan">新建平面图</string>
+    <string name="sketch_new_photo">在照片上</string>
+    <string name="sketch_photo_camera">拍照</string>
+    <string name="sketch_photo_gallery">从相册选择</string>
+    <string name="sketch_photo_failed">无法打开照片</string>
+    <string name="sketch_no_camera">未找到相机应用</string>
+    <string name="sketch_export">导出为图片</string>
+    <string name="sketch_save_gallery">保存到相册</string>
+    <string name="sketch_saved">已保存到 Pictures/Zamer</string>
+    <string name="sketch_save_failed">无法保存图片</string>
+    <string name="sketch_more">更多</string>
+    <string name="sketch_delete_confirm">删除此草图？</string>
+    <string name="action_rename">重命名</string>
     <string name="action_undo">撤销</string>
     <string name="action_reset">重新开始</string>
     <string name="action_copy">复制</string>
@@ -59,7 +71,6 @@
     <string name="action_save">保存</string>
     <string name="action_clear">清除</string>
     <string name="copied">已复制</string>
-
     <string name="status_connected">已连接</string>
     <string name="status_searching">正在查找测距仪…</string>
     <string name="status_connecting">正在连接…</string>
@@ -70,7 +81,6 @@
     <string name="action_enable_bt">开启</string>
     <string name="action_allow">允许</string>
     <string name="action_pair">配对</string>
-
     <string name="history_title">历史</string>
     <string name="history_tab_results">结果</string>
     <string name="history_tab_readings">测量值</string>
@@ -83,7 +93,6 @@
     <string name="readings_clear_confirm">删除测距仪的全部测量值记录？</string>
     <string name="today">今天</string>
     <string name="yesterday">昨天</string>
-
     <string name="settings_title">设置</string>
     <string name="settings_device">测距仪</string>
     <string name="settings_units">单位</string>
@@ -101,7 +110,6 @@
     <string name="settings_forget">取消配对</string>
     <string name="settings_forget_confirm">在你重新配对之前，应用将不再连接这台测距仪。</string>
     <string name="settings_about">配对直接在本手机与测距仪之间完成，不使用小米账号或云端。</string>
-
     <string name="pairing_title">连接你的测距仪</string>
     <string name="pairing_intro">开启测距仪，让蓝牙图标闪烁，并放在手机附近。无需小米账号。</string>
     <string name="pairing_searching">正在搜索…</string>

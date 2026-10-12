@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Zamer</string>
-
     <string name="tab_measure">Medir</string>
     <string name="tab_history">Historial</string>
     <string name="tab_settings">Ajustes</string>
-
     <string name="mode_distance">Longitud</string>
     <string name="mode_area">Área</string>
     <string name="mode_volume">Volumen</string>
     <string name="mode_height">Altura</string>
-
     <string name="slot_length">Largo</string>
     <string name="slot_width">Ancho</string>
     <string name="slot_height">Alto</string>
@@ -24,7 +21,6 @@
     <string name="slot_next_hypotenuse">Ahora mide hasta el objetivo</string>
     <string name="height_howto">Apoya la esquina trasera del medidor en el suelo: primero mide por el suelo hasta el punto que está debajo del objetivo y luego, sin mover esa esquina, mide en diagonal hasta el objetivo.</string>
     <string name="hero_hint_start">Presiona el botón de medición del medidor láser</string>
-
     <string name="result_distance">Distancia</string>
     <string name="result_area">Área</string>
     <string name="result_volume">Volumen</string>
@@ -37,7 +33,6 @@
     <string name="name_title">Nombre del resultado</string>
     <string name="name_hint">p. ej., Suelo de la cocina</string>
     <string name="recent_readings">Mediciones recientes</string>
-
     <string name="sketch_title">Croquis</string>
     <string name="sketch_total_area">Área: %1$s</string>
     <string name="sketch_prompt_measure">Mide el lado resaltado con el medidor o tócalo dos veces para escribir la longitud</string>
@@ -45,10 +40,27 @@
     <string name="sketch_prompt_select">Toca un lado para volver a medirlo o tócalo dos veces para escribir su longitud</string>
     <string name="sketch_tool_line">Línea</string>
     <string name="sketch_tool_rect">Rectángulo</string>
+    <string name="sketch_tool_text">Texto</string>
+    <string name="sketch_note">Nota</string>
+    <string name="sketch_prompt_note">Toca donde va la nota</string>
     <string name="sketch_fit">Ver todo</string>
     <string name="sketch_clear_confirm">¿Borrar todo el croquis?</string>
     <string name="action_back">Atrás</string>
-
+    <string name="sketches_title">Croquis</string>
+    <string name="sketches_empty">Aquí aparecerán tus croquis</string>
+    <string name="sketch_new_plan">Nuevo plano</string>
+    <string name="sketch_new_photo">Sobre una foto</string>
+    <string name="sketch_photo_camera">Tomar una foto</string>
+    <string name="sketch_photo_gallery">Elegir de la galería</string>
+    <string name="sketch_photo_failed">No se pudo abrir la foto</string>
+    <string name="sketch_no_camera">No hay ninguna app de cámara</string>
+    <string name="sketch_export">Exportar como imagen</string>
+    <string name="sketch_save_gallery">Guardar en la galería</string>
+    <string name="sketch_saved">Guardado en Pictures/Zamer</string>
+    <string name="sketch_save_failed">No se pudo guardar la imagen</string>
+    <string name="sketch_more">Más</string>
+    <string name="sketch_delete_confirm">¿Eliminar este croquis?</string>
+    <string name="action_rename">Cambiar nombre</string>
     <string name="action_undo">Deshacer</string>
     <string name="action_reset">Reiniciar</string>
     <string name="action_copy">Copiar</string>
@@ -59,7 +71,6 @@
     <string name="action_save">Guardar</string>
     <string name="action_clear">Borrar</string>
     <string name="copied">Copiado</string>
-
     <string name="status_connected">Conectado</string>
     <string name="status_searching">Buscando el medidor…</string>
     <string name="status_connecting">Conectando…</string>
@@ -70,7 +81,6 @@
     <string name="action_enable_bt">Activar</string>
     <string name="action_allow">Permitir</string>
     <string name="action_pair">Vincular</string>
-
     <string name="history_title">Historial</string>
     <string name="history_tab_results">Resultados</string>
     <string name="history_tab_readings">Mediciones</string>
@@ -83,7 +93,6 @@
     <string name="readings_clear_confirm">¿Eliminar todo el registro de mediciones del medidor?</string>
     <string name="today">Hoy</string>
     <string name="yesterday">Ayer</string>
-
     <string name="settings_title">Ajustes</string>
     <string name="settings_device">Medidor láser</string>
     <string name="settings_units">Unidades</string>
@@ -101,7 +110,6 @@
     <string name="settings_forget">Olvidar</string>
     <string name="settings_forget_confirm">La app dejará de conectarse a este medidor hasta que vuelvas a vincularlo.</string>
     <string name="settings_about">La vinculación se hace directamente entre este teléfono y el medidor. No se usa ninguna cuenta Mi ni la nube.</string>
-
     <string name="pairing_title">Conecta tu medidor láser</string>
     <string name="pairing_intro">Enciéndelo para que parpadee el icono de Bluetooth y mantenlo cerca. No necesitas una cuenta Mi.</string>
     <string name="pairing_searching">Buscando…</string>

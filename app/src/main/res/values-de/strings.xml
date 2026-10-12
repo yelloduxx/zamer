@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Zamer</string>
-
     <string name="tab_measure">Messen</string>
     <string name="tab_history">Verlauf</string>
     <string name="tab_settings">Einstellungen</string>
-
     <string name="mode_distance">Länge</string>
     <string name="mode_area">Fläche</string>
     <string name="mode_volume">Volumen</string>
     <string name="mode_height">Höhe</string>
-
     <string name="slot_length">Länge</string>
     <string name="slot_width">Breite</string>
     <string name="slot_height">Höhe</string>
@@ -24,7 +21,6 @@
     <string name="slot_next_hypotenuse">Miss jetzt zum Ziel</string>
     <string name="height_howto">Setz die hintere Ecke des Entfernungsmessers auf den Boden: Miss zuerst am Boden entlang bis zum Punkt unter dem Ziel und dann, ohne die Ecke zu bewegen, schräg nach oben zum Ziel.</string>
     <string name="hero_hint_start">Drück die Messtaste am Entfernungsmesser</string>
-
     <string name="result_distance">Entfernung</string>
     <string name="result_area">Fläche</string>
     <string name="result_volume">Volumen</string>
@@ -37,7 +33,6 @@
     <string name="name_title">Ergebnis benennen</string>
     <string name="name_hint">z. B. Küchenboden</string>
     <string name="recent_readings">Letzte Messwerte</string>
-
     <string name="sketch_title">Skizze</string>
     <string name="sketch_total_area">Fläche: %1$s</string>
     <string name="sketch_prompt_measure">Miss die markierte Seite mit dem Entfernungsmesser oder tippe doppelt darauf, um die Länge einzugeben</string>
@@ -45,10 +40,27 @@
     <string name="sketch_prompt_select">Tippe auf eine Seite, um sie neu zu messen, oder doppelt, um ihre Länge einzugeben</string>
     <string name="sketch_tool_line">Linie</string>
     <string name="sketch_tool_rect">Rechteck</string>
+    <string name="sketch_tool_text">Text</string>
+    <string name="sketch_note">Notiz</string>
+    <string name="sketch_prompt_note">Tippe dorthin, wo die Notiz stehen soll</string>
     <string name="sketch_fit">Alles zeigen</string>
     <string name="sketch_clear_confirm">Die ganze Skizze löschen?</string>
     <string name="action_back">Zurück</string>
-
+    <string name="sketches_title">Skizzen</string>
+    <string name="sketches_empty">Hier erscheinen deine Skizzen</string>
+    <string name="sketch_new_plan">Neuer Grundriss</string>
+    <string name="sketch_new_photo">Auf einem Foto</string>
+    <string name="sketch_photo_camera">Foto aufnehmen</string>
+    <string name="sketch_photo_gallery">Aus Galerie wählen</string>
+    <string name="sketch_photo_failed">Foto konnte nicht geöffnet werden</string>
+    <string name="sketch_no_camera">Keine Kamera-App gefunden</string>
+    <string name="sketch_export">Als Bild exportieren</string>
+    <string name="sketch_save_gallery">In Galerie speichern</string>
+    <string name="sketch_saved">In Pictures/Zamer gespeichert</string>
+    <string name="sketch_save_failed">Bild konnte nicht gespeichert werden</string>
+    <string name="sketch_more">Mehr</string>
+    <string name="sketch_delete_confirm">Diese Skizze löschen?</string>
+    <string name="action_rename">Umbenennen</string>
     <string name="action_undo">Rückgängig</string>
     <string name="action_reset">Von vorn</string>
     <string name="action_copy">Kopieren</string>
@@ -59,7 +71,6 @@
     <string name="action_save">Speichern</string>
     <string name="action_clear">Leeren</string>
     <string name="copied">Kopiert</string>
-
     <string name="status_connected">Verbunden</string>
     <string name="status_searching">Suche Entfernungsmesser…</string>
     <string name="status_connecting">Verbinde…</string>
@@ -70,7 +81,6 @@
     <string name="action_enable_bt">Einschalten</string>
     <string name="action_allow">Erlauben</string>
     <string name="action_pair">Koppeln</string>
-
     <string name="history_title">Verlauf</string>
     <string name="history_tab_results">Ergebnisse</string>
     <string name="history_tab_readings">Messwerte</string>
@@ -83,7 +93,6 @@
     <string name="readings_clear_confirm">Das gesamte Protokoll der Messwerte vom Entfernungsmesser löschen?</string>
     <string name="today">Heute</string>
     <string name="yesterday">Gestern</string>
-
     <string name="settings_title">Einstellungen</string>
     <string name="settings_device">Entfernungsmesser</string>
     <string name="settings_units">Einheiten</string>
@@ -101,7 +110,6 @@
     <string name="settings_forget">Entkoppeln</string>
     <string name="settings_forget_confirm">Die App verbindet sich nicht mehr mit diesem Entfernungsmesser, bis du ihn erneut koppelst.</string>
     <string name="settings_about">Die Kopplung erfolgt direkt zwischen diesem Handy und dem Entfernungsmesser. Es werden weder ein Mi-Konto noch eine Cloud verwendet.</string>
-
     <string name="pairing_title">Entfernungsmesser verbinden</string>
     <string name="pairing_intro">Schalte ihn ein, sodass das Bluetooth-Symbol blinkt, und halte ihn in der Nähe. Ein Mi-Konto ist nicht nötig.</string>
     <string name="pairing_searching">Suche…</string>
